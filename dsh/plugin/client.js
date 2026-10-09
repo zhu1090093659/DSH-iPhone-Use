@@ -64,6 +64,7 @@ window.__ModuleLoader__.load({
      * Frames arrive as base64 JPEG; only the most recent one is ever rendered.
      */
     function PhonePanel(props) {
+      var ctx = props.ctx
       var useTabInfo = props.useTabInfo
       var tabInfo = useTabInfo ? useTabInfo() : undefined
       var [preview, setPreview] = useState(null)
@@ -76,6 +77,36 @@ window.__ModuleLoader__.load({
       useEffect(function () {
         alive.current = true
         return function () { alive.current = false }
+      }, [])
+
+      // Reveal the panel when the model asks for the screen (pua_screen).
+      // The host records a monotonic stamp; acting once per new stamp keeps a
+      // user-closed panel closed until the next request.
+      useEffect(function () {
+        var stop = false
+        var acted = 0
+        var timer
+        function check() {
+          if (stop) return
+          fetch(ROUTES.state)
+            .then(function (response) { return response.json() })
+            .then(function (data) {
+              if (stop) return
+              var stamp = data && typeof data.panel_requested_at === 'number' ? data.panel_requested_at : 0
+              if (stamp > 0 && stamp > acted) {
+                acted = stamp
+                try {
+                  if (ctx && ctx.sidebarRight) ctx.sidebarRight.openTab(TAB_KIND)
+                } catch (error) {
+                  /* the panel simply stays closed when the column is unavailable */
+                }
+              }
+            })
+            .catch(function () {})
+          timer = setTimeout(check, 2000)
+        }
+        check()
+        return function () { stop = true; if (timer) clearTimeout(timer) }
       }, [])
 
       useEffect(function () {
@@ -197,7 +228,9 @@ window.__ModuleLoader__.load({
           return ctx.slots.register({
             name: 'sidebar.right.pane.tab',
             key: TAB_ID,
-          }, PhonePanel)
+          }, function PanelBody(props) {
+            return h(PhonePanel, Object.assign({}, props, { ctx: ctx }))
+          })
         })
       }, 'dsh-iphone-use: tab body')
     }

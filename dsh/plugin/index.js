@@ -67,8 +67,8 @@ export const ROUTES = {
   action: '/iphone-use/action',
 }
 
-/** Tools the preview panel calls itself; the model never sees them. */
-const PANEL_TOOLS = new Set(['pua_screen_frame', 'pua_screen_action'])
+/** The skill bundles this package ships, by directory name. */
+const SKILL_FILES = ['iphone-use', 'iphone-use-setup']
 
 /** Largest accepted panel action body. */
 const MAX_BODY_BYTES = 64 * 1024
@@ -145,6 +145,7 @@ function mountBridge(ctx, config) {
   let disposed = false
   let bridge
   let bridgeStart
+  let disposeSkills = () => {}
 
   /** Start the bridge once; concurrent callers share the attempt. */
   const ensureBridge = () => {
@@ -167,23 +168,33 @@ function mountBridge(ctx, config) {
 
   const disposers = []
 
+  // The panel watches this flag so `pua_screen` opens the live tab in the
+  // session that asked for it, the way the pre-migration panel did.
+  const panelRequest = { requestedAt: 0 }
+
   // Register the tool surface immediately from the generated table, so the
   // model sees the tools before any device or child process exists. This is
   // also what makes `--dump-config-schema` prove the plugin without a device.
   const table = loadToolTableSync()
   for (const tool of table.tools) {
     if (tool.appOnly === true) continue
-    disposers.push(ctx.tools.register(defineBridgeTool(tool, callBridge, config)))
+    disposers.push(ctx.tools.register(defineBridgeTool(tool, callBridge, config, panelRequest)))
   }
+
+  // Register this package's two skills as runtime skills. The same SKILL.md
+  // files the repository ships become visible in every DSH session, so the
+  // workflow guidance travels with the plugin instead of the checkout.
+  disposeSkills = registerSkills(ctx, disposers)
 
   if (config.panel !== false) {
     ctx.inject(['webServer'], (injected) => {
-      disposers.push(registerPanelRoutes(injected.webServer, config, callBridge))
+      disposers.push(registerPanelRoutes(injected.webServer, config, callBridge, panelRequest))
     })
   }
 
   return () => {
     disposed = true
+    disposeSkills()
     for (const dispose of disposers.splice(0)) {
       try {
         dispose()
@@ -248,13 +259,67 @@ async function startOnce(config, ctx) {
 }
 
 /**
+ * Publish this package's two skills into the session skill catalog.
+ *
+ * The skill bodies are the repository's own `SKILL.md` files, copied into the
+ * package, so a user gets the same iPhone workflow guidance without cloning
+ * anything. Registration is effect-scoped: disposing the plugin removes them.
+ *
+ * @param ctx - the host plugin context.
+ * @param disposers - the mount's disposer list, appended to.
+ * @returns a disposer that removes any skill that was actually registered.
+ */
+function registerSkills(ctx, disposers) {
+  const skills = ctx.get('skills')
+  if (skills === undefined) return () => {}
+  const owned = []
+  for (const entry of SKILL_FILES) {
+    const file = join(PACKAGE_ROOT, 'skills', entry, 'SKILL.md')
+    if (!existsSync(file)) continue
+    const parsed = parseSkillFile(readFileSync(file, 'utf8'))
+    if (parsed === undefined) continue
+    try {
+      owned.push(skills.register({
+        name: parsed.name,
+        description: parsed.description,
+        content: parsed.content,
+        source: 'bundled',
+        resourceBase: { kind: 'directory', path: join(PACKAGE_ROOT, 'skills', entry) },
+      }))
+    } catch (error) {
+      ctx.logger?.warn?.(`dsh-iphone-use: skill "${entry}" was not registered: ${String(error)}`)
+    }
+  }
+  return () => {
+    for (const dispose of owned.splice(0)) {
+      try {
+        dispose()
+      } catch (error) {
+        ctx.logger?.warn?.(String(error))
+      }
+    }
+  }
+}
+
+/** Split a `SKILL.md` into its frontmatter name/description and its body. */
+function parseSkillFile(text) {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text)
+  if (match === null) return undefined
+  const header = match[1]
+  const name = /^name:\s*(.+)$/m.exec(header)?.[1]?.trim()
+  const description = /^description:\s*(.+)$/m.exec(header)?.[1]?.trim()
+  if (name === undefined || description === undefined) return undefined
+  return { name, description, content: text.slice(match[0].length) }
+}
+
+/**
  * Build one model-facing DSH tool from a generated table entry.
  *
  * The tool's canonical value is the bridge's own result object, so the value
  * schema stays open on purpose: the bridge owns the result contract and any
  * narrowing here would reject a valid bridge answer.
  */
-function defineBridgeTool(tool, callBridge, config) {
+function defineBridgeTool(tool, callBridge, config, panelRequest) {
   return {
     name: tool.name,
     description: tool.description,
@@ -266,12 +331,16 @@ function defineBridgeTool(tool, callBridge, config) {
     isConcurrencySafe: () => tool.readOnly === true,
     async execute(args, exec) {
       const params = { name: tool.name, arguments: args ?? {} }
-      return callBridge('tools/call', params, config.callTimeoutMs).then(
-        (result) => unwrapToolResult(result, exec),
-        (error) => {
-          throw toToolError(error, tool.name)
-        },
-      )
+      const result = await callBridge('tools/call', params, config.callTimeoutMs)
+      // `pua_screen` opens or closes the live panel: record the request so the
+      // panel in the calling session reveals itself. Opening the panel is a
+      // presentation concern, so a failure here must never fail the tool call.
+      if (tool.name === 'pua_screen' && panelRequest !== undefined) {
+        const action = args?.action ?? 'open'
+        if (action === 'pause') panelRequest.requestedAt = 0
+        else panelRequest.requestedAt = Date.now()
+      }
+      return unwrapToolResult(result, exec)
     },
   }
 }
@@ -310,12 +379,18 @@ function unwrapToolResult(result, exec) {
     value = { ...value, image_saved_to: saved }
   }
   if (result.isError === true) {
-    const message = value !== null && typeof value === 'object' && typeof value.message === 'string'
-      ? value.message
+    // The bridge reports failures as `{ error: { code, message, uncertain } }`,
+    // so the model-facing message is the nested one; a flat shape is also read
+    // in case a future bridge returns the error object directly.
+    const detail = value !== null && typeof value === 'object' && value.error !== null && typeof value.error === 'object'
+      ? value.error
+      : value
+    const message = detail !== null && typeof detail === 'object' && typeof detail.message === 'string'
+      ? detail.message
       : 'the phone operation failed'
     const error = new Error(message)
     error.name = 'IPhoneUseError'
-    if (value !== null && typeof value === 'object' && value.code !== undefined) error.code = value.code
+    if (detail !== null && typeof detail === 'object' && detail.code !== undefined) error.code = detail.code
     error.details = value
     throw error
   }
@@ -373,7 +448,7 @@ function toToolError(error, toolName) {
  * cross-site browser request. It is a DNS-rebinding and cross-site defense,
  * not authentication.
  */
-function registerPanelRoutes(webServer, config, callBridge) {
+function registerPanelRoutes(webServer, config, callBridge, panelRequest) {
   const guard = (handler) => async (req, res) => {
     try {
       if (!isTrustedRequest(req, config.trustedHosts)) {
@@ -391,7 +466,13 @@ function registerPanelRoutes(webServer, config, callBridge) {
       kind: 'exact',
       path: ROUTES.state,
       handler: guard(async (_req, res) => {
-        send(res, 200, { ok: true, routes: ROUTES })
+        send(res, 200, {
+          ok: true,
+          routes: ROUTES,
+          // Newer than the stamp the panel last acted on means "the model
+          // asked to see the screen"; the panel reveals itself once.
+          panel_requested_at: panelRequest?.requestedAt ?? 0,
+        })
       }),
     }),
     webServer.register({
