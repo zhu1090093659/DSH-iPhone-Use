@@ -189,6 +189,28 @@ class SetupManager:
         return source
 
     @staticmethod
+    def is_physical(item, hardware, state, connection):
+        """Decide whether one CoreDevice entry describes a real device.
+
+        Xcode has changed how it reports this. Older releases set
+        ``hardware.reality`` to ``physical`` or ``simulated``. Current
+        releases (observed on Xcode 27) omit that field entirely and instead
+        mark simulators with ``state.visibilityClass == "simulators"``,
+        leaving a real device at ``"default"``. Testing only ``reality``
+        therefore hid a physically connected iPhone behind an empty list.
+        """
+        reality = hardware.get("reality")
+        if isinstance(reality, str) and reality != "":
+            return reality == "physical"
+        visibility = state.get("visibilityClass") or item.get("visibilityClass")
+        if isinstance(visibility, str) and visibility != "":
+            return visibility != "simulators"
+        # Neither marker is present: a simulator is reached over this same
+        # machine while a wired phone is not, so use the transport as the
+        # last discriminator rather than silently dropping the device.
+        return connection.get("transportType") != "sameMachine"
+
+    @staticmethod
     def parse_devices(document):
         """Support Xcode's legacy and current CoreDevice JSON formats."""
         result = []
@@ -198,7 +220,9 @@ class SetupManager:
             state = props.get("state", item.get("deviceProperties", {}))
             connection = props.get("connection", item.get("connectionProperties", {}))
             software = props.get("software", item.get("deviceProperties", {}))
-            if hardware.get("reality") != "physical" or hardware.get("deviceType") not in {"iPhone", "iPad"}:
+            if hardware.get("deviceType") not in {"iPhone", "iPad"}:
+                continue
+            if not SetupManager.is_physical(item, hardware, state, connection):
                 continue
             version = software.get("osVersionNumber", "unknown")
             if isinstance(version, dict):
@@ -208,7 +232,11 @@ class SetupManager:
                 developer = "enabled" if "enabled" in developer else "disabled" if "disabled" in developer else "unknown"
             result.append({"udid": hardware.get("udid", item.get("identifier")),
                            "core_device_id": item.get("identifier"), "name": state.get("name", "iPhone"),
-                           "model": hardware.get("marketingName"), "ios_version": version,
+                           # Xcode 27 dropped marketingName, so fall back to the
+                           # product type (for example iPhone18,3) rather than
+                           # reporting no model at all.
+                           "model": hardware.get("marketingName") or hardware.get("productType"),
+                           "ios_version": version,
                            "pairing_state": connection.get("pairingState", "unknown"),
                            "connection_state": connection.get("state", connection.get("tunnelState", "unknown")),
                            "transport": connection.get("transportType", "unknown"),

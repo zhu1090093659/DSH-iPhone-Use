@@ -76,6 +76,60 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(parsed["pairing_state"], "unpaired")
         self.assertEqual(parsed["unlocked"], "user_check_required")
 
+    def test_xcode_27_device_list_without_reality_still_finds_the_phone(self):
+        """Xcode 27 dropped "reality"; a real iPhone must not disappear.
+
+        Real capture from `xcrun devicectl list devices --json-output` on
+        Xcode 27: simulators carry ``state.visibilityClass == "simulators"``
+        and the physical iPhone carries ``"default"``, while neither has a
+        ``hardware.reality`` field. Filtering on ``reality`` alone returned
+        an empty device list for a connected phone.
+        """
+        document = {"result": {"devices": [
+            {"identifier": "sim-1", "properties": {
+                "hardware": {"deviceType": "iPhone", "udid": "SIM-UDID"},
+                "state": {"name": "Wordbook Demo", "bootState": "shutdown", "visibilityClass": "simulators"},
+                "connection": {"pairingState": "paired", "transportType": "sameMachine"}}},
+            {"identifier": "0B102C0D", "properties": {
+                "hardware": {"deviceType": "iPhone", "udid": "00008150-001C225C3EBB401C",
+                             "productType": "iPhone18,3"},
+                "state": {"name": "iPhone", "bootState": "booted", "visibilityClass": "default"},
+                "connection": {"pairingState": "paired", "state": "unavailable", "transportType": "wired"},
+                "software": {"osVersionNumber": {"stringValue": "27.0"}}}},
+            {"identifier": "mac", "properties": {
+                "hardware": {"deviceType": "Mac"},
+                "state": {"name": "Mac"},
+                "connection": {"transportType": "localNetwork"}}},
+        ]}}
+        devices = wda_setup.SetupManager.parse_devices(document)
+        self.assertEqual([device['udid'] for device in devices], ['00008150-001C225C3EBB401C'])
+        phone = devices[0]
+        self.assertEqual(phone['name'], 'iPhone')
+        self.assertEqual(phone['ios_version'], '27.0')
+        self.assertEqual(phone['pairing_state'], 'paired')
+        self.assertEqual(phone['transport'], 'wired')
+
+    def test_visibility_class_marks_simulators_without_reality(self):
+        """The simulator marker alone is enough to exclude a device."""
+        document = {"result": {"devices": [
+            {"identifier": "s", "properties": {"hardware": {"deviceType": "iPhone", "udid": "S"},
+             "state": {"visibilityClass": "simulators"},
+             "connection": {"transportType": "wired"}}},
+            {"identifier": "p", "properties": {"hardware": {"deviceType": "iPad", "udid": "P"},
+             "state": {"visibilityClass": "default"},
+             "connection": {"transportType": "wired"}}},
+        ]}}
+        self.assertEqual([d['udid'] for d in wda_setup.SetupManager.parse_devices(document)], ['P'])
+
+    def test_an_unknown_reality_marker_still_falls_back_to_transport(self):
+        """With no marker at all, a same-machine device is the simulator."""
+        document = {"result": {"devices": [
+            {"identifier": "a", "properties": {"hardware": {"deviceType": "iPhone", "udid": "A"},
+             "state": {}, "connection": {"transportType": "sameMachine"}}},
+            {"identifier": "b", "properties": {"hardware": {"deviceType": "iPhone", "udid": "B"},
+             "state": {}, "connection": {"transportType": "wired"}}},
+        ]}}
+        self.assertEqual([d['udid'] for d in wda_setup.SetupManager.parse_devices(document)], ['B'])
     def test_job_status_redacts_and_reports_actionable_signing_failure(self):
         job = self.job()
         job["state"] = "failed"
