@@ -60,6 +60,32 @@ function findPackageRoot(start) {
 
 const PACKAGE_ROOT = findPackageRoot(HERE)
 
+/**
+ * Locate one shipped asset directory.
+ *
+ * The installed package embeds its own copies, so `PACKAGE_ROOT/<name>` is the
+ * normal answer. Running this file straight from the repository is also
+ * supported for development: there the assets live beside the package, one
+ * directory above `dsh/plugin`. The first existing candidate wins, and the
+ * packaged layout is always tried first so a shipped tarball never reaches
+ * outside itself.
+ *
+ * @param name - the asset directory name, such as `skills` or `server`.
+ * @returns the absolute directory to read, or `undefined` when neither exists.
+ */
+function findAssetDirectory(...names) {
+  const inside = join(PACKAGE_ROOT, ...names)
+  if (existsSync(inside)) return inside
+  // The development fallback is gated on a positive source-tree marker: the
+  // repository root holds this very package at `dsh/plugin`. An installed
+  // package never satisfies that, so a shipped tarball can never read assets
+  // from outside itself even if one of its own directories is missing.
+  const repositoryRoot = resolve(PACKAGE_ROOT, '..', '..')
+  if (resolve(repositoryRoot, 'dsh', 'plugin') !== PACKAGE_ROOT) return undefined
+  const beside = join(repositoryRoot, ...names)
+  return existsSync(beside) ? beside : undefined
+}
+
 /** Versioned asset names and the panel's route prefix. */
 export const ROUTES = {
   state: '/iphone-use/state',
@@ -104,7 +130,7 @@ export function resolveConfig(raw) {
   const given = raw ?? {}
   const entrypoint = typeof given.entrypoint === 'string' && given.entrypoint.trim() !== ''
     ? resolve(given.entrypoint)
-    : join(PACKAGE_ROOT, 'server', 'iphone_use.py')
+    : join(findAssetDirectory('server') ?? join(PACKAGE_ROOT, 'server'), 'iphone_use.py')
   return {
     ...DEFAULTS,
     ...given,
@@ -272,9 +298,14 @@ async function startOnce(config, ctx) {
 function registerSkills(ctx, disposers) {
   const skills = ctx.get('skills')
   if (skills === undefined) return () => {}
+  const root = findAssetDirectory('skills')
+  if (root === undefined) {
+    ctx.logger?.warn?.('dsh-iphone-use: the bundled skills directory was not found; skill guidance is unavailable')
+    return () => {}
+  }
   const owned = []
   for (const entry of SKILL_FILES) {
-    const file = join(PACKAGE_ROOT, 'skills', entry, 'SKILL.md')
+    const file = join(root, entry, 'SKILL.md')
     if (!existsSync(file)) continue
     const parsed = parseSkillFile(readFileSync(file, 'utf8'))
     if (parsed === undefined) continue
@@ -284,7 +315,7 @@ function registerSkills(ctx, disposers) {
         description: parsed.description,
         content: parsed.content,
         source: 'bundled',
-        resourceBase: { kind: 'directory', path: join(PACKAGE_ROOT, 'skills', entry) },
+        resourceBase: { kind: 'directory', path: join(root, entry) },
       }))
     } catch (error) {
       ctx.logger?.warn?.(`dsh-iphone-use: skill "${entry}" was not registered: ${String(error)}`)

@@ -8,8 +8,9 @@
  */
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+
 import { fileURLToPath } from 'node:url'
 import {
   DEFAULTS,
@@ -33,7 +34,15 @@ function textResult(value, extra = {}) {
 
 test('config resolves the shipped bridge and honours every override', () => {
   const base = resolveConfig(undefined)
-  assert.equal(base.entrypoint, join(PLUGIN, 'server', 'iphone_use.py'))
+  // The packaged layout embeds `server/` beside the entry; running from the
+  // repository instead resolves the repository's own bridge. Either way the
+  // resolved path must be a real bridge, never a path outside the project.
+  assert.ok(existsSync(base.entrypoint), 'resolved entrypoint does not exist: ' + base.entrypoint)
+  assert.match(base.entrypoint, /(^|\/)server\/iphone_use\.py$/)
+  // Confined to the project: the package root when installed, the repository
+  // root when run from source. It must never resolve elsewhere on the machine.
+  const projectRoot = resolve(PLUGIN, '..', '..')
+  assert.ok(base.entrypoint.startsWith(projectRoot), base.entrypoint)
   assert.equal(base.python, '')
   assert.equal(base.panel, true)
   assert.equal(base.callTimeoutMs, DEFAULTS.callTimeoutMs)

@@ -19,7 +19,7 @@
  * fails it reports SKIP for the session step and still checks the rest.
  */
 import { execFile, execFileSync, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -52,7 +52,7 @@ function run(command, args, options = {}) {
 async function runAsync(command, args, options = {}) {
   return new Promise((resolvePromise) => {
     const child = execFile(command, args, {
-      cwd: ROOT,
+      cwd: options.cwd ?? ROOT,
       env: { ...process.env, DSH_HOME: HOME, IPHONE_USE_ANALYTICS: '0', ...options.env },
       encoding: 'utf8',
       maxBuffer: 32 * 1024 * 1024,
@@ -109,7 +109,41 @@ async function main() {
     record('the answer is the bridge\'s own value', typeof result?.result === 'string' && result.result.includes('latency_scope'))
     const advertised = mock.advertised()
     record('all 17 model-visible pua tools reach the model', advertised.length === 17, advertised.join(','))
-    await mock.stop()
+
+    // The installed copy must resolve its own assets. The fake checkout proves
+    // it: a plugin that reached back into the development tree would still
+    // work there, so moving that tree away must leave the installed plugin
+    // untouched.
+    const installed = join(HOME, 'profiles', PROFILE, 'node_modules', 'dsh-iphone-use')
+    const hidden = join(WORK, 'checkout-moved-away')
+    const packageManifest = JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8'))
+    record('the profile installs the package itself', packageManifest.name === 'dsh-iphone-use', installed)
+    for (const asset of ['server/iphone_use.py', 'skills/iphone-use/SKILL.md', 'skills/iphone-use-setup/SKILL.md', 'tools.generated.json', 'client.js']) {
+      record(`the installed package ships ${asset}`, existsSync(join(installed, asset)))
+    }
+    renameSync(ROOT, hidden)
+    try {
+      // With the checkout gone the plugin can only work from its own copy.
+      // The working directory must be outside the moved checkout: with cwd
+      // pointing at a path that no longer exists the child cannot even start,
+      // which would test the harness rather than the plugin's self-resolution.
+      const isolated = await runAsync('dsh', ['--profile', PROFILE, 'headless', '--json', 'call pua_metrics'], {
+        env: { IU_MOCK_KEY: 'iu-mock-key' },
+        cwd: WORK,
+      })
+      const isolatedEvents = isolated.stdout.trim().split('\n').filter(Boolean)
+        .map((line) => { try { return JSON.parse(line) } catch { return undefined } }).filter(Boolean)
+      const isolatedResult = isolatedEvents.find((event) => event.type === 'tool_result')
+      record(
+        'the installed plugin works with the checkout absent',
+        isolatedResult?.status === 'completed',
+        isolatedResult?.status ?? isolated.stderr.trim().slice(0, 200),
+      )
+    } finally {
+      renameSync(hidden, ROOT)
+      // Stop the mock only after every session has run against it.
+      await mock.stop()
+    }
   }
 
   console.log('== 5. uninstall cleans up ==')
@@ -163,7 +197,9 @@ async function startMock() {
     host: '127.0.0.1',
     port: PORT,
     apiKey: 'iu-mock-key',
-    sequence: ['tool_call_success', 'success'],
+    // Two sessions run against this server, so script enough steps for both;
+    // each session consumes one tool call and one final answer.
+    sequence: ['tool_call_success', 'success', 'tool_call_success', 'success'],
     toolName: 'pua_metrics',
     toolArguments: JSON.stringify({}),
     successText: 'E2E-FINAL',
