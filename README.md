@@ -12,6 +12,27 @@ iPhone Use 使用 [WebDriverAgent](https://github.com/appium/WebDriverAgent)（W
 
 **使用前，需要先在你自己的 iPhone 上安装、签名并启动 WDA Runner。** WDA 是运行在手机上的执行服务；下面的提示词和 setup 流程可以让 Codex 协助完成首次安装，已有健康的 WDA 可直接复用。
 
+## 也可以由 DeepSeek Harness 驱动
+
+同一个设备桥接层（`server/`）与技能（`skills/`）现在也能由 **DSH** 驱动：无需安装、登录或启动 Codex，工具、会话、生命周期和右侧栏实时画面都由 DSH 宿主负责。安装一行命令：
+
+```sh
+node dsh/scripts/install.mjs --profile <你的 profile 名>
+```
+
+```text
+用 iphone-use-setup 技能帮我配置 USB 连接的 iPhone，安装并启动 WDA，
+验证 READY，然后打开手机屏幕。
+```
+
+本仓库内相关文档：
+
+- 完整安装与配置：`dsh/docs/install.md`
+- 能力前后对照：`dsh/docs/migration-inventory.md`
+- 验收记录：`dsh/docs/acceptance.md`
+
+Codex 用法保持不变；两者共用同一份设备能力代码。
+
 ## 用一段提示词让 Codex 安装
 
 将下面这段话复制到本机 Codex：
