@@ -36,7 +36,7 @@ description: 配置 PUA（Phone Use Agent），在用户自己的 iPhone 上安�
 5. 用 `build` 构建，然后 `start` 安装并启动 Runner 测试服务及本机 USB 转发。fetch/build/start 是后台工作；记录 job_id，用 `pua_setup(action="status", job_id=...)` 查询已有工作，从返回 `jobs` 数组按 id 找到它，不假定 status 返回单个 job。fetch / build 看终态，失败时读准确日志；start 是长期 Runner，工作仍 running 且 `service.ready=true` 时即可调用 READY，不等 succeeded、不重复 start。按状态、日志及返回的 retry_after_seconds 查询，不固定长间隔或固定次数盲等。start 使用当前配置的成功构建产物，默认保留数据线并保持设备可供 UI 测试使用。
 6. 若手机或 Xcode 报开发者不受信任，按当前设备的“设置 → 通用 → VPN 与设备管理”及其开发者条目完成验证；以当前提示为准，不把企业 App 的流程套用于所有开发签名。再执行 `status` 和 `pua_ready`。
 
-账号登录、密码、设备解锁、手机确认或 Xcode 安装确实需要用户完成时，说明准确页面、阻塞原因和完成后继续的步骤，并必须调用可用的宿主提问工具（Default 优先 `functions.request_user_input_async`），首个选项固定「已完成继续」，第二个可为「暂时无法完成」。异步返回、预选或经过一段时间不代表用户完成；收到用户实际选择「已完成继续」或明确完成回复才继续依赖该步骤的配置。只有宿主没有提问能力时才用文字等待说明。其余独立配置可以继续执行。不要为已授权的本机安装再加入统一确认关卡。不要删除用户已有开发 App、吊销共享证书或付费升级账户来绕过错误。
+账号登录、密码、设备解锁、手机确认或 Xcode 安装确实需要用户完成时，说明准确页面、阻塞原因和完成后继续的步骤，并必须调用可用的宿主提问工具（DSH 用 `ask_user_question`，Codex Default 模式用 `functions.request_user_input_async`），首个选项固定「已完成继续」，第二个可为「暂时无法完成」。异步返回、预选或经过一段时间不代表用户完成；收到用户实际选择「已完成继续」或明确完成回复才继续依赖该步骤的配置。只有宿主没有提问能力时才用文字等待说明。其余独立配置可以继续执行。不要为已授权的本机安装再加入统一确认关卡。不要删除用户已有开发 App、吊销共享证书或付费升级账户来绕过错误。
 
 ## READY 验收与恢复
 

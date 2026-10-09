@@ -23,7 +23,7 @@ description: 通过 PUA（Phone Use Agent）MCP 工具高效操作真实 iPhone�
 
 READY 关联手机屏幕侧边栏，宿主支持时默认打开或复用本聊天已有面板；重复 setup / 恢复通道、暂停 / 恢复预览沿用同一个 widget。已有面板时直接继续，不为刷新再调用屏幕打开工具；需要重新打开已关闭的面板时调用一次 `pua_screen()`，不要为打开画面重复 READY。用户要求“先打开 widget 让我看”时先打开，再继续初始化与已授权任务；只有明确要求等他确认再操作时才等待。widget 顶部显示机型和 Live 状态，底部的刷新 / 主屏幕 / 截图三个按钮只供用户自己点击，不是模型的工具：不要调用仅供 App 使用的 `pua_screen_frame` 和 `pua_screen_action`，不要为刷新预览增加轮询、截图或 observe。用户点过主屏幕后页面会变，按下一次观察到的实际状态继续。画面留空、光效或 cursor 都不证明 READY、动作成功或任务完成，也不是模型观察。预览问题按 [屏幕通道说明](references/screen.md) 排查，不为它反复恢复控制通道。
 
-App 实际要求密码、PIN、验证码、Face ID / Touch ID，或手机需要用户解锁时，按 [认证接管与恢复](references/authentication.md) 等用户完成。App 认证先 `pua_screen(action="pause")`；`phone_locked` 已自动暂停为 `device_locked`，不要再用显式 pause 覆盖原因。必须调用宿主提问工具（Default 优先 `functions.request_user_input_async`），首个选项固定「已完成继续」，第二个可为「暂时无法完成」。异步返回 / 预选不是用户答复；接管期间暂停手机动作、读取和截图，不索取凭据。实际完成通知后，App 认证或旧版未知暂停先 `pua_screen(action="resume")` 再取新观察；设备解锁则重验 READY，成功时仅自动解除同一次锁屏暂停。READY 的 `preview.paused` / `pause_reason` 说明预览状态；不能把 READY 成功当成 App 认证已完成。根据新状态继续剩余工作。
+App 实际要求密码、PIN、验证码、Face ID / Touch ID，或手机需要用户解锁时，按 [认证接管与恢复](references/authentication.md) 等用户完成。App 认证先 `pua_screen(action="pause")`；`phone_locked` 已自动暂停为 `device_locked`，不要再用显式 pause 覆盖原因。必须调用宿主自带的提问工具（DSH 用 `ask_user_question`，Codex Default 模式用 `functions.request_user_input_async`），首个选项固定「已完成继续」，第二个可为「暂时无法完成」。异步返回 / 预选不是用户答复；接管期间暂停手机动作、读取和截图，不索取凭据。实际完成通知后，App 认证或旧版未知暂停先 `pua_screen(action="resume")` 再取新观察；设备解锁则重验 READY，成功时仅自动解除同一次锁屏暂停。READY 的 `preview.paused` / `pause_reason` 说明预览状态；不能把 READY 成功当成 App 认证已完成。根据新状态继续剩余工作。
 
 ## 按下一步需要选择观察
 
@@ -45,9 +45,13 @@ App 实际要求密码、PIN、验证码、Face ID / Touch ID，或手机需要�
 
 截图像素点 `(px, py)` 换算为 `x=px*image.pixel_to_point[0]`、`y=py*image.pixel_to_point[1]` 后传给 `pua_tap`。x/y 接受 iPhone 点，不能直接传截图像素或 Mac widget 坐标。
 
-通过 `functions.exec` 调工具时必须把图片真正转发给模型，不能 `text(result)` 输出整份含 base64 的结果：
+必须真正看到截图本身，不能把图片元数据或 base64 当成看过截图。按当前宿主选一种方式：
+
+- DSH：结果里的 `image_saved_to`（或 `image.path` / `error.observation.image.path`）是主机上已落盘的 PNG 路径，用 DSH 自带的 `read_image` 读取。
+- Codex：通过 `functions.exec` 调工具时逐个内容块转发，图片用 `image(block)`、文字用 `text(block.text)`，不能 `text(result)` 输出整份含 base64 的结果；图片无法转发时用 `view_image` 打开 `image.path`。
 
 ```javascript
+// Codex 路径：把图片块真正转发给模型
 const result = await tools.mcp__iphone_use__pua_observe({mode: "screenshot"});
 for (const block of result.content ?? []) {
   if (block.type === "text") text(block.text);
@@ -55,7 +59,7 @@ for (const block of result.content ?? []) {
 }
 ```
 
-点击、输入等失败结果同样转发图片块。如果图片没转发成功，用 `view_image` 打开返回的 `image.path` / `error.observation.image.path`；不能把图片元数据或 base64 当成看过截图。
+点击、输入等失败结果同样要看到图片。
 
 以上用于可恢复的界面定位问题。参数错误按 schema 修正，通道故障恢复 READY，锁屏 / 认证等用户完成。动作是否生效不确定时先读真实状态，不能重放输入、发送、下单或整个批次；截图足以处理的常规遮挡应继续尝试，不提前把任务交还用户。
 

@@ -17,7 +17,7 @@
 - 查询短暂失败：工具可有界重读一次；POST 查询接口不应按 mutation 处理，查询失效不证明手机动作已执行。
 - `local.pid.0`、`pua_foreground_unavailable` 或 XCTest Code 41：通道故障，调用 READY 恢复；不要通过更改 selector 或重复手机按钮处理。锁屏、签名和信任问题按 setup skill；App 密码 / Face ID 按认证接管。
 
-通过 `functions.exec` 时逐个内容块转发：文字用 `text(block.text)`，图片用 `image(block)`；不要 `text(result)` 把截图变成 base64 文本。图片无法转发时用 `view_image` 打开 `image.path` / `error.observation.image.path`。坐标按 `pixel_to_point` 换算。
+看到截图的方式按宿主选择：DSH 用自带 `read_image` 读结果里的 `image_saved_to`（或 `image.path` / `error.observation.image.path`）；Codex 通过 `functions.exec` 时逐个内容块转发，文字用 `text(block.text)`，图片用 `image(block)`，不要 `text(result)` 把截图变成 base64 文本，无法转发时用 `view_image` 打开同一路径。坐标按 `pixel_to_point` 换算。
 
 普通 `verified=false` 不是错误，不要求 observe 或停止 batch。HTTP accepted 只描述请求边界；常规路径继续，最终关键状态显式验收。
 

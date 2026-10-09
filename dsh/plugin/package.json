@@ -19,6 +19,7 @@
     "cordis.patch.yml",
     "tools.generated.json",
     "lib",
+    "test",
     "server",
     "tooling",
     "assets",
@@ -52,5 +53,10 @@
     "client": {
       "platform": "web"
     }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "build": "node ../scripts/build.mjs",
+    "check": "python3 ../scripts/emit_tools.py --check"
   }
 }

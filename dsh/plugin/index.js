@@ -340,7 +340,8 @@ function defineBridgeTool(tool, callBridge, config, panelRequest) {
         if (action === 'pause') panelRequest.requestedAt = 0
         else panelRequest.requestedAt = Date.now()
       }
-      return unwrapToolResult(result, exec)
+      void exec
+      return unwrapToolResult(result)
     },
   }
 }
@@ -355,10 +356,9 @@ function defineBridgeTool(tool, callBridge, config, panelRequest) {
  * the shipped `read_image` tool, and the panel reads the same file directly.
  *
  * @param result - the raw `tools/call` result.
- * @param exec - the running call, used to honor cancellation.
  * @returns the canonical value handed to `render`.
  */
-function unwrapToolResult(result, exec) {
+export function unwrapToolResult(result) {
   if (result === null || typeof result !== 'object') {
     throw new BridgeTransportError('the phone bridge returned a malformed tool result')
   }
@@ -394,7 +394,6 @@ function unwrapToolResult(result, exec) {
     error.details = value
     throw error
   }
-  void exec
   return value
 }
 
@@ -414,7 +413,7 @@ function findImagePath(value) {
 }
 
 /** Render the canonical value as one compact JSON text block plus the image path. */
-function renderToolResult(value) {
+export function renderToolResult(value) {
   const text = JSON.stringify(value, null, 2)
   const blocks = [{ type: 'text', text }]
   return blocks
@@ -536,7 +535,7 @@ function registerPanelRoutes(webServer, config, callBridge, panelRequest) {
  * @param result - the raw `tools/call` result.
  * @returns the panel payload.
  */
-function unwrapPanel(result) {
+export function unwrapPanel(result) {
   if (result !== null && typeof result === 'object' && result.structuredContent !== undefined) {
     return result.structuredContent
   }
