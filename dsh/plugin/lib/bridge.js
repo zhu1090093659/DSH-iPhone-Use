@@ -108,6 +108,7 @@ class BridgeClient {
     if (entry === undefined) return
     this.pending.delete(message.id)
     clearTimeout(entry.timer)
+    entry.signal?.removeEventListener('abort', entry.onAbort)
     if (message.error !== undefined) {
       const error = message.error
       entry.reject(new BridgeError(error?.code ?? -32603, String(error?.message ?? 'bridge error'), error?.data))
@@ -119,6 +120,7 @@ class BridgeClient {
   failAll(error) {
     for (const entry of this.pending.values()) {
       clearTimeout(entry.timer)
+      entry.signal?.removeEventListener('abort', entry.onAbort)
       entry.reject(error)
     }
     this.pending.clear()
@@ -130,13 +132,19 @@ class BridgeClient {
    * @param method - the MCP method name.
    * @param params - the method parameters.
    * @param timeoutMs - per-request bound; the bridge's own budgets are lower.
+   * @param signal - caller cancellation. Aborting settles this promise only;
+   *   the bridge finishes the accepted operation on its own, because a phone
+   *   action cannot be un-sent. Disposal is what stops the child.
    * @returns the JSON-RPC result.
    */
-  request(method, params, timeoutMs) {
+  request(method, params, timeoutMs, signal) {
     // Report the original cause when there is one: "not running" alone does not
     // tell a user whether the interpreter is missing or the child crashed.
     if (this.failure !== undefined) return Promise.reject(this.failure)
     if (this.closed) return Promise.reject(new BridgeTransportError('the phone bridge is not running'))
+    if (signal?.aborted === true) {
+      return Promise.reject(new BridgeTransportError(`${method} was cancelled before it was sent`))
+    }
     const id = this.nextId++
     const frame = JSON.stringify({ jsonrpc: '2.0', id, method, params: params ?? {} })
     return new Promise((resolve, reject) => {
@@ -145,10 +153,17 @@ class BridgeClient {
         reject(new BridgeTransportError(`the phone bridge did not answer ${method} within ${timeoutMs} ms`))
       }, timeoutMs)
       timer.unref?.()
-      this.pending.set(id, { resolve, reject, timer })
+      const onAbort = () => {
+        this.pending.delete(id)
+        clearTimeout(timer)
+        reject(new BridgeTransportError(`${method} was cancelled; the phone may still finish the accepted operation`))
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      this.pending.set(id, { resolve, reject, timer, onAbort, signal })
       const settle = (error) => {
         this.pending.delete(id)
         clearTimeout(timer)
+        signal?.removeEventListener('abort', onAbort)
         reject(error)
       }
       try {

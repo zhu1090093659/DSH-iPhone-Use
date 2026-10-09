@@ -8,7 +8,7 @@
  */
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { writeFileSync } from 'node:fs'
+import { chmodSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
@@ -155,5 +155,62 @@ ${SERVER}
   const ready = await client.request('initialize', {}, 5_000)
   assert.equal(ready.protocolVersion, PROTOCOLS[0])
   assert.ok(diagnostics.some((line) => line.includes('diagnostic')), 'the stray line was not reported')
+  await client.stop(1_000)
+})
+test('caller cancellation settles the call without waiting for the bridge', async () => {
+  const file = scriptedServer(SERVER)
+  const client = startBridge({ command: process.execPath, args: [file], cwd: HERE, env: process.env })
+  await client.request('initialize', {}, 5_000)
+
+  const controller = new AbortController()
+  const pending = client.request('tools/call', { name: 'hang', arguments: {} }, 30_000, controller.signal)
+  setTimeout(() => controller.abort(), 50)
+  await assert.rejects(
+    () => pending,
+    (error) => {
+      assert.ok(error instanceof BridgeTransportError)
+      assert.match(error.message, /was cancelled/)
+      // The message must not claim the phone action was undone.
+      assert.match(error.message, /the phone may still finish the accepted operation/)
+      return true
+    },
+  )
+  // The client stays usable for later calls.
+  const called = await client.request('tools/call', { name: 'pua_doctor', arguments: {} }, 5_000)
+  assert.equal(JSON.parse(called.content[0].text).name, 'pua_doctor')
+  await client.stop(1_000)
+})
+
+test('an already-aborted signal never reaches the bridge', async () => {
+  const file = scriptedServer(SERVER)
+  const client = startBridge({ command: process.execPath, args: [file], cwd: HERE, env: process.env })
+  const controller = new AbortController()
+  controller.abort()
+  await assert.rejects(
+    () => client.request('initialize', {}, 5_000, controller.signal),
+    (error) => {
+      assert.ok(error instanceof BridgeTransportError)
+      assert.match(error.message, /was cancelled before it was sent/)
+      return true
+    },
+  )
+  await client.stop(1_000)
+})
+
+test('a permission failure reports the operating system reason', async () => {
+  // A file that exists but is not executable is the common real-world case
+  // (a checkout that lost its mode bits); the OS reason must survive.
+  const file = scriptedServer(SERVER)
+  chmodSync(file, 0o644)
+  const client = startBridge({ command: file, args: [], cwd: HERE, env: process.env })
+  await assert.rejects(
+    () => client.request('initialize', {}, 5_000),
+    (error) => {
+      assert.ok(error instanceof BridgeTransportError)
+      assert.match(error.message, /could not be started/)
+      assert.match(error.message, /EACCES|EPERM|permission/i)
+      return true
+    },
+  )
   await client.stop(1_000)
 })

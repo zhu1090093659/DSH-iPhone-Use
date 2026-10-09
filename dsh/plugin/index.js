@@ -187,9 +187,9 @@ function mountBridge(ctx, config) {
     return bridgeStart
   }
 
-  const callBridge = async (method, params, timeoutMs) => {
+  const callBridge = async (method, params, timeoutMs, signal) => {
     const client = await ensureBridge()
-    return client.request(method, params, timeoutMs)
+    return client.request(method, params, timeoutMs, signal)
   }
 
   const disposers = []
@@ -362,7 +362,10 @@ function defineBridgeTool(tool, callBridge, config, panelRequest) {
     isConcurrencySafe: () => tool.readOnly === true,
     async execute(args, exec) {
       const params = { name: tool.name, arguments: args ?? {} }
-      const result = await callBridge('tools/call', params, config.callTimeoutMs)
+      // `exec.signal` is the caller's cancellation. Forwarding it settles the
+      // model's call promptly; the bridge still finishes an accepted phone
+      // action, so the tool never claims an aborted action did not happen.
+      const result = await callBridge('tools/call', params, config.callTimeoutMs, exec?.signal)
       // `pua_screen` opens or closes the live panel: record the request so the
       // panel in the calling session reveals itself. Opening the panel is a
       // presentation concern, so a failure here must never fail the tool call.
