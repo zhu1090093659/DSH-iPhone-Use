@@ -1,0 +1,37 @@
+# dsh-iphone-use bundle patch.
+#
+# Mounted through the profile's `dsh.profile.bundles` list by
+# `dsh plugin --profile <name> add <spec>`, which appends "dsh-iphone-use" to
+# that list; this layer then inserts the host row below.
+#
+# The plugin's own layer is the only supported mounting channel: the row id
+# "iphone-use" must not also be inserted by hand in the profile or home
+# cordis.patch.yml, or the two channels duplicate the row id and boot fails.
+- insert:
+    - id: iphone-use
+      name: dsh-iphone-use
+      config:
+        # Python interpreter running the device bridge. Empty resolves
+        # "python3" on PATH.
+        python: ''
+        # Absolute path to the bridge entrypoint. Empty uses the copy shipped
+        # inside this package, so an installed package is self-contained.
+        entrypoint: ''
+        # Extra environment for the bridge process. The state directory and a
+        # pinned WDA URL belong here when the defaults do not fit:
+        #   env:
+        #     IPHONE_USE_STATE_DIR: /Users/me/.local/share/iphone-use
+        #     WDA_URL: http://127.0.0.1:18100
+        env: {}
+        # Bound for one tool call, in milliseconds.
+        callTimeoutMs: 300000
+        # Bound for one panel request, in milliseconds.
+        requestTimeoutMs: 30000
+        # How long the bridge may take to drain after the host stops it.
+        shutdownGraceMs: 10000
+        # Extra non-loopback authorities the panel routes trust. Leave empty
+        # for a normal loopback-only deployment.
+        trustedHosts: []
+        # Serve the right-Sidebar panel's routes. The agent tools work either
+        # way; this only controls the live screen panel.
+        panel: true

@@ -1,0 +1,1802 @@
+{
+  "version": "0.3.6",
+  "tools": [
+    {
+      "name": "pua_observe",
+      "title": "Pua observe",
+      "description": "Fresh phone controls and/or a screenshot, with the iPhone point viewport and an observation_id. Nodes: type without the XCUIElementType prefix; rect=[x,y,width,height] in points; an omitted name equals label, an omitted value repeats the text, omitted enabled/visible/in_viewport are true. A listed node is not proven hittable: fixed headers and overlays can cover it. The screenshot is scaled for reading: image pixels x image.pixel_to_point [x,y] = points.",
+      "readOnly": true,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "Standalone observation output, default tree. Use mode here; observe is a post-action option on mutation tools. none is not a standalone observation mode.",
+            "enum": [
+              "tree",
+              "screenshot",
+              "both"
+            ]
+          },
+          "include_invisible": {
+            "type": "boolean"
+          },
+          "max_nodes": {
+            "type": "integer"
+          },
+          "expensive_visibility": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_find",
+      "title": "Pua find",
+      "description": "Query selector fields or a PUA predicate directly without a whole tree. Returns matches in tree order with index, type, texts and rect; this tool's selector documents the fields every selector accepts.",
+      "readOnly": true,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Exact accessibility label copied from fresh nodes; real newlines and punctuation are preserved automatically."
+              },
+              "label_contains": {
+                "type": "string",
+                "description": "Substring of the label, for long or changing labels. Case-sensitive, encoded safely."
+              },
+              "name": {
+                "type": "string",
+                "description": "Exact accessibility identifier/name. Nodes omit name when it equals label."
+              },
+              "value": {
+                "type": "string",
+                "description": "Exact current accessibility value; not the text to enter. Omit values that change asynchronously."
+              },
+              "type": {
+                "type": "string",
+                "description": "Exact element type as nodes show it, e.g. Button. Not an application bundle ID."
+              },
+              "enabled": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ]
+                  }
+                ],
+                "description": "Optional exact enabled filter. This does not prove hittability."
+              },
+              "index": {
+                "type": "integer",
+                "description": "0-based position among the matches in tree order, as listed by pua_find or an ambiguous_target error. Only to choose between several matches."
+              },
+              "predicate": {
+                "type": "string",
+                "description": "Advanced NSPredicate query used alone (index may accompany it). Prefer the exact fields so text is safely encoded."
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "Exact label/name/value/type/enabled fields or label_contains, or a standalone predicate. rect, visible and in_viewport are observation fields, not selector fields. Matches nested at one place, or with only one on screen, resolve to that element; several separate matches return candidates with tap points and an index.",
+            "examples": [
+              {
+                "label": "返回",
+                "type": "Button"
+              }
+            ]
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "selector"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_tap",
+      "title": "Pua tap",
+      "description": "Tap the element a selector resolves to after on-screen and hittable checks, or tap point coordinates with optional contextual observation_id. If the selector fails, the error returns a screenshot and tap points: tap by x/y in the next call instead of trying other selectors. Executes once optimistically; expect opts into a postcondition. Request tree/both if the next decision needs the new page.",
+      "readOnly": false,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "label_contains": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "enabled": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ]
+                  }
+                ]
+              },
+              "index": {
+                "type": "integer"
+              },
+              "predicate": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "Selector; fields as documented on pua_find.selector."
+          },
+          "x": {
+            "type": "number"
+          },
+          "y": {
+            "type": "number"
+          },
+          "observation_id": {
+            "type": "string",
+            "description": "Optional ID from this Runtime. Checks app/viewport context, not whole-page pixel equality or age."
+          },
+          "expect": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "label_contains": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "enabled": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ]
+                  }
+                ]
+              },
+              "index": {
+                "type": "integer"
+              },
+              "predicate": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "Selector; fields as documented on pua_find.selector."
+          },
+          "observe": {
+            "type": "string",
+            "enum": [
+              "none",
+              "tree",
+              "screenshot",
+              "both"
+            ],
+            "default": "none",
+            "description": "Post-action output for the next decision; default none."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_swipe",
+      "title": "Pua swipe",
+      "description": "One gesture; default verify=false/observe=none skips XML checks. verify=true checks geometry once; failure returns a screenshot even with none/tree, without another gesture. Inspect it before acting; no progress does not prove list completeness.",
+      "readOnly": false,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "description": "Finger movement; up usually reveals later rows. Default up.",
+            "enum": [
+              "up",
+              "down",
+              "left",
+              "right"
+            ]
+          },
+          "region": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "width": {
+                "type": "number"
+              },
+              "height": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "width",
+              "height"
+            ],
+            "additionalProperties": false,
+            "description": "Scroll rectangle in iPhone points, not screenshot pixels. observation_id is optional. Omit region for the central area, or use the actual list bounds. With verify=true, the region must fit current viewport and native modal bounds."
+          },
+          "observation_id": {
+            "type": "string",
+            "description": "Optional ID from this Runtime; checks app/viewport context, not numeric/carousel text changes or age."
+          },
+          "expect": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "label_contains": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "enabled": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ]
+                  }
+                ]
+              },
+              "index": {
+                "type": "integer"
+              },
+              "predicate": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "Selector; fields as documented on pua_find.selector."
+          },
+          "verify": {
+            "type": "boolean",
+            "default": false,
+            "description": "False: one gesture, no XML checks. True: check anchor movement once; failure returns a screenshot before another action. Numeric refresh is not progress."
+          },
+          "max_attempts": {
+            "type": "integer",
+            "default": 1,
+            "description": "Legacy limit; even 2 stops after the first unproven gesture for screenshot inspection."
+          },
+          "observe": {
+            "type": "string",
+            "enum": [
+              "none",
+              "tree",
+              "screenshot",
+              "both"
+            ],
+            "default": "none",
+            "description": "Post-action output for the next decision; default none."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_type_text",
+      "title": "Pua type text",
+      "description": "Enter the full intended Unicode text into an editable nonsecure field; no short-text trial or mandatory readback. Omit selector to type into the field that already has keyboard focus, which is how to continue after a selector failed: tap the field by x/y, then type. Send the whole text in one call: long text is typed in bounded requests, and a result with input_complete=false returns a continue_token to pass alone in the next call, after which verify/submit/expect/observe run. verify=true opts into exact readback before submit; expect opts into a page postcondition. Newlines need explicit intent; submit defaults false. Never replay uncertain input/submission.",
+      "readOnly": false,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "label_contains": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "enabled": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ]
+                  }
+                ]
+              },
+              "index": {
+                "type": "integer"
+              },
+              "predicate": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "Selector; fields as documented on pua_find.selector."
+          },
+          "text": {
+            "type": "string",
+            "description": "Full text to enter. Required with selector unless continue_token is given."
+          },
+          "allow_newlines": {
+            "type": "boolean"
+          },
+          "submit": {
+            "type": "boolean"
+          },
+          "replace": {
+            "type": "boolean"
+          },
+          "verify": {
+            "type": "boolean",
+            "default": false,
+            "description": "Default false enters the full intended text once without value readback. True checks exact value and stops before submit on mismatch. Secure fields require user takeover."
+          },
+          "expect": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "label_contains": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "enabled": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ]
+                  }
+                ]
+              },
+              "index": {
+                "type": "integer"
+              },
+              "predicate": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "Selector; fields as documented on pua_find.selector."
+          },
+          "observe": {
+            "type": "string",
+            "enum": [
+              "none",
+              "tree",
+              "screenshot",
+              "both"
+            ],
+            "default": "none",
+            "description": "Post-action output for the next decision; default none."
+          },
+          "continue_token": {
+            "type": "string",
+            "description": "Token from a result with input_complete=false. Pass it alone to type the rest of that text with its original options."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_press_button",
+      "title": "Pua press button",
+      "description": "Home uses the dedicated PUA homescreen endpoint once; default skips foreground polling. verify=true checks SpringBoard for Home, expect can check a page. Volume effects cannot be semantically verified.",
+      "readOnly": false,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "home",
+              "volumeup",
+              "volumedown"
+            ]
+          },
+          "verify": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to this operation's result check. Default false executes once and defers checking to the next required observation or final key checkpoint. Never blindly replay an uncertain mutation."
+          },
+          "expect": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "label_contains": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "enabled": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ]
+                  }
+                ]
+              },
+              "index": {
+                "type": "integer"
+              },
+              "predicate": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "Selector; fields as documented on pua_find.selector."
+          },
+          "observe": {
+            "type": "string",
+            "enum": [
+              "none",
+              "tree",
+              "screenshot",
+              "both"
+            ],
+            "default": "none",
+            "description": "Post-action output for the next decision; default none."
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_launch_app",
+      "title": "Pua launch app",
+      "description": "Activate once using a resolved bundle ID, optimistically by default. verify=true polls foreground up to five seconds; expect checks the intended page. Request observation for the next decision. Never blindly replay uncertain activation.",
+      "readOnly": false,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "bundle_id": {
+            "type": "string"
+          },
+          "verify": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to this operation's result check. Default false executes once and defers checking to the next required observation or final key checkpoint. Never blindly replay an uncertain mutation."
+          },
+          "expect": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "label_contains": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "enabled": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ]
+                  }
+                ]
+              },
+              "index": {
+                "type": "integer"
+              },
+              "predicate": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "Selector; fields as documented on pua_find.selector."
+          },
+          "observe": {
+            "type": "string",
+            "enum": [
+              "none",
+              "tree",
+              "screenshot",
+              "both"
+            ],
+            "default": "none",
+            "description": "Post-action output for the next decision; default none."
+          }
+        },
+        "required": [
+          "bundle_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_wait",
+      "title": "Pua wait",
+      "description": "Bounded semantic presence polling for expected target. Presence is a UI postcondition, not proof of business correctness.",
+      "readOnly": true,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "label_contains": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "enabled": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ]
+                  }
+                ]
+              },
+              "index": {
+                "type": "integer"
+              },
+              "predicate": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "Selector; fields as documented on pua_find.selector."
+          },
+          "timeout_seconds": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "selector"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_scroll_find",
+      "title": "Pua scroll find",
+      "description": "Find a hittable target with at most one swipe. Ambiguity/occlusion stops immediately; an unresolved post-scroll query returns a screenshot. Inspect the end, region and overlays before deciding whether to swipe again; do not blindly repeat or raise the budget.",
+      "readOnly": false,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "selector": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "label_contains": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "enabled": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ]
+                  }
+                ]
+              },
+              "index": {
+                "type": "integer"
+              },
+              "predicate": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "Selector; fields as documented on pua_find.selector."
+          },
+          "direction": {
+            "type": "string",
+            "description": "Finger movement; up usually reveals later rows.",
+            "enum": [
+              "up",
+              "down",
+              "left",
+              "right"
+            ]
+          },
+          "max_swipes": {
+            "type": "integer",
+            "default": 1,
+            "description": "0 only queries; positive legacy limits allow at most one swipe, then an unresolved target returns a screenshot for the next decision."
+          }
+        },
+        "required": [
+          "selector"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_collect_list",
+      "title": "Pua collect list",
+      "description": "Collect/deduplicate accessibility rows over bounded pages. Returns evidence and explicit coverage limits; always requires reconciliation before declaring business completeness.",
+      "readOnly": false,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "row_type": {
+            "type": "string"
+          },
+          "max_pages": {
+            "type": "integer"
+          },
+          "end_selector": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "label_contains": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "enabled": {
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ]
+                  }
+                ]
+              },
+              "index": {
+                "type": "integer"
+              },
+              "predicate": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "Selector; fields as documented on pua_find.selector."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_apps",
+      "title": "Pua apps",
+      "description": "Resolve a real bundle ID by installed-device inventory, bundled verified aliases, or Apple's Search API. Query app name before launch instead of guessing. Store metadata does not prove installation; check installed_verified and publisher/country.",
+      "readOnly": true,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "catalog",
+              "installed",
+              "apple"
+            ]
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_doctor",
+      "title": "Pua doctor",
+      "description": "Diagnose local Xcode, USB devices, signing prerequisites and PUA health without changing the phone. Start here for setup.",
+      "readOnly": true,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_ready",
+      "title": "Pua ready",
+      "description": "First phone task in a new chat: initialize with READY (recover=true or omitted); only ready=true permits phone tasks. Reuse this chat's healthy channel afterward. pua_unreachable/not_ready is a setup branch, not final task failure: setup(status), reuse an active job or start once, then READY again. recover=true handles owned runtime faults; it does not cold-start a stopped service. For state=recovering/recovery_required follow guidance. Never replay phone actions.",
+      "readOnly": false,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "screenshot": {
+            "type": "boolean",
+            "default": true,
+            "description": "Also verify screenshot; false retains status/session/source/viewport/unlock checks."
+          },
+          "recover": {
+            "type": "boolean",
+            "default": true,
+            "description": "Normal task startup: omit or set true, so a persistent local.pid/XCTest fault can queue one bounded restart of a proven owned PUA. Use false only for an explicitly requested diagnostic/no-restart check, not a routine precheck. False is respected and returns ready=false, state=recovery_required when restart is needed; queued recovery returns state=recovering. Neither state proves readiness."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_metrics",
+      "title": "Pua metrics",
+      "description": "In-process totals without text, app data or images: PUA HTTP time and bytes, tool time, response bytes per tool, and the wait between each response and the next tool request (host, model and user time). reset=true starts a new window.",
+      "readOnly": true,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "reset": {
+            "type": "boolean",
+            "default": false,
+            "description": "Return the totals, then start a new measurement window."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_setup",
+      "title": "Pua setup",
+      "description": "Initialize/start PUA when READY is unreachable or not_ready: status first, reuse an active start/recovery job, or start once with the existing config/build. Poll its job until service.ready=true, then READY again. Missing config/source/build uses iphone-use-setup. No blanket reinstall or extra approval for authorized startup; honor no-restart instructions. Never uninstalls apps.",
+      "readOnly": false,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "discover",
+              "fetch",
+              "configure",
+              "build",
+              "start",
+              "stop",
+              "status"
+            ]
+          },
+          "udid": {
+            "type": "string"
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "bundle_id": {
+            "type": "string"
+          },
+          "source_dir": {
+            "type": "string"
+          },
+          "local_port": {
+            "type": "integer"
+          },
+          "device_port": {
+            "type": "integer"
+          },
+          "job_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_batch",
+      "title": "Pua batch",
+      "description": "Up to 20 known steps in one model round trip. Routine unverified actions continue optimistically with intermediate observe=none. Stops on actual error, failed explicit check, uncertainty, submission without an explicit result expectation, unfinished long input (input_continues) or the per-call time budget (time_budget); continue from stopped_at without repeating completed steps. Observe the last step when the next decision needs page context.",
+      "readOnly": false,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "steps": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "tap"
+                    },
+                    "args": {
+                      "type": "object",
+                      "properties": {
+                        "selector": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "label_contains": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "oneOf": [
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "true",
+                                    "false"
+                                  ]
+                                }
+                              ]
+                            },
+                            "index": {
+                              "type": "integer"
+                            },
+                            "predicate": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        },
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        },
+                        "observation_id": {
+                          "type": "string"
+                        },
+                        "expect": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "label_contains": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "oneOf": [
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "true",
+                                    "false"
+                                  ]
+                                }
+                              ]
+                            },
+                            "index": {
+                              "type": "integer"
+                            },
+                            "predicate": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        },
+                        "observe": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "tree",
+                            "screenshot",
+                            "both"
+                          ],
+                          "default": "none"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "args"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "swipe"
+                    },
+                    "args": {
+                      "type": "object",
+                      "properties": {
+                        "direction": {
+                          "type": "string",
+                          "enum": [
+                            "up",
+                            "down",
+                            "left",
+                            "right"
+                          ]
+                        },
+                        "region": {
+                          "type": "object",
+                          "properties": {
+                            "x": {
+                              "type": "number"
+                            },
+                            "y": {
+                              "type": "number"
+                            },
+                            "width": {
+                              "type": "number"
+                            },
+                            "height": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "x",
+                            "y",
+                            "width",
+                            "height"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "observation_id": {
+                          "type": "string"
+                        },
+                        "expect": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "label_contains": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "oneOf": [
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "true",
+                                    "false"
+                                  ]
+                                }
+                              ]
+                            },
+                            "index": {
+                              "type": "integer"
+                            },
+                            "predicate": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        },
+                        "verify": {
+                          "type": "boolean",
+                          "default": false
+                        },
+                        "max_attempts": {
+                          "type": "integer",
+                          "default": 1
+                        },
+                        "observe": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "tree",
+                            "screenshot",
+                            "both"
+                          ],
+                          "default": "none"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "args"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "type_text"
+                    },
+                    "args": {
+                      "type": "object",
+                      "properties": {
+                        "selector": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "label_contains": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "oneOf": [
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "true",
+                                    "false"
+                                  ]
+                                }
+                              ]
+                            },
+                            "index": {
+                              "type": "integer"
+                            },
+                            "predicate": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "allow_newlines": {
+                          "type": "boolean"
+                        },
+                        "submit": {
+                          "type": "boolean"
+                        },
+                        "replace": {
+                          "type": "boolean"
+                        },
+                        "verify": {
+                          "type": "boolean",
+                          "default": false
+                        },
+                        "expect": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "label_contains": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "oneOf": [
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "true",
+                                    "false"
+                                  ]
+                                }
+                              ]
+                            },
+                            "index": {
+                              "type": "integer"
+                            },
+                            "predicate": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        },
+                        "observe": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "tree",
+                            "screenshot",
+                            "both"
+                          ],
+                          "default": "none"
+                        },
+                        "continue_token": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "args"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "launch_app"
+                    },
+                    "args": {
+                      "type": "object",
+                      "properties": {
+                        "bundle_id": {
+                          "type": "string"
+                        },
+                        "verify": {
+                          "type": "boolean",
+                          "default": false
+                        },
+                        "expect": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "label_contains": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "oneOf": [
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "true",
+                                    "false"
+                                  ]
+                                }
+                              ]
+                            },
+                            "index": {
+                              "type": "integer"
+                            },
+                            "predicate": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        },
+                        "observe": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "tree",
+                            "screenshot",
+                            "both"
+                          ],
+                          "default": "none"
+                        }
+                      },
+                      "required": [
+                        "bundle_id"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "args"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "press_button"
+                    },
+                    "args": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "home",
+                            "volumeup",
+                            "volumedown"
+                          ]
+                        },
+                        "verify": {
+                          "type": "boolean",
+                          "default": false
+                        },
+                        "expect": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "label_contains": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "oneOf": [
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "true",
+                                    "false"
+                                  ]
+                                }
+                              ]
+                            },
+                            "index": {
+                              "type": "integer"
+                            },
+                            "predicate": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        },
+                        "observe": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "tree",
+                            "screenshot",
+                            "both"
+                          ],
+                          "default": "none"
+                        }
+                      },
+                      "required": [
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "args"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "wait"
+                    },
+                    "args": {
+                      "type": "object",
+                      "properties": {
+                        "selector": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "label_contains": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "oneOf": [
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "true",
+                                    "false"
+                                  ]
+                                }
+                              ]
+                            },
+                            "index": {
+                              "type": "integer"
+                            },
+                            "predicate": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        },
+                        "timeout_seconds": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "selector"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "args"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "observe"
+                    },
+                    "args": {
+                      "type": "object",
+                      "properties": {
+                        "mode": {
+                          "type": "string",
+                          "enum": [
+                            "tree",
+                            "screenshot",
+                            "both"
+                          ]
+                        },
+                        "include_invisible": {
+                          "type": "boolean"
+                        },
+                        "max_nodes": {
+                          "type": "integer"
+                        },
+                        "expensive_visibility": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "args"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "scroll_find"
+                    },
+                    "args": {
+                      "type": "object",
+                      "properties": {
+                        "selector": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "label_contains": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "enabled": {
+                              "oneOf": [
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "true",
+                                    "false"
+                                  ]
+                                }
+                              ]
+                            },
+                            "index": {
+                              "type": "integer"
+                            },
+                            "predicate": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [],
+                          "additionalProperties": false
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": [
+                            "up",
+                            "down",
+                            "left",
+                            "right"
+                          ]
+                        },
+                        "max_swipes": {
+                          "type": "integer",
+                          "default": 1
+                        }
+                      },
+                      "required": [
+                        "selector"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "args"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "steps"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_screen",
+      "title": "手机屏幕",
+      "description": "Open or reuse the live iPhone screen in the Codex side panel. No phone actions or UI controls. Pause the preview before password/Face ID user takeover; resume after explicit completion. READY also opens or reuses this view by default.",
+      "readOnly": false,
+      "appOnly": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Default open displays the live iPhone sidebar. Pause before password/Face ID takeover; resume only after the user confirms completion.",
+            "enum": [
+              "open",
+              "pause",
+              "resume"
+            ]
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_screen_frame",
+      "title": "Pua screen frame",
+      "description": "App-only cached live preview and action cursor events. Never reads XML, starts sessions or occupies the phone operation lock.",
+      "readOnly": true,
+      "appOnly": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "after_seq": {
+            "type": "integer"
+          },
+          "last_event_id": {
+            "type": "integer"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "pua_screen_action",
+      "title": "Pua screen action",
+      "description": "App-only toolbar of the live preview, pressed by the user: refresh the preview stream, send the iPhone Home, or copy a screenshot to the Mac clipboard. Refused while the preview is paused for authentication.",
+      "readOnly": false,
+      "appOnly": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "refresh reconnects the preview stream, home returns the iPhone to its Home screen, screenshot copies a native capture to the Mac clipboard.",
+            "enum": [
+              "refresh",
+              "home",
+              "screenshot"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

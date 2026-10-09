@@ -1,0 +1,159 @@
+/**
+ * A minimal MCP stdio client for the iPhone Use device bridge.
+ *
+ * The bridge is a standard Model Context Protocol server over stdin/stdout:
+ * it answers `initialize`, `tools/list`, `tools/call`, `ping` and the two
+ * resource methods. Speaking that protocol directly keeps this plugin free of
+ * any dependency beyond Node itself, so the same package loads in a profile
+ * that supplies no MCP client of its own.
+ *
+ * One request is in flight at a time per method stream; tool calls are
+ * serialized by the bridge anyway (it owns a single phone session), so this
+ * client queues calls rather than racing them.
+ */
+import { spawn } from 'node:child_process'
+import { createInterface } from 'node:readline'
+
+/** Protocol revisions the bridge accepts, newest first. */
+export const PROTOCOLS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05']
+
+/** A JSON-RPC error reported by the bridge. */
+export class BridgeError extends Error {
+  constructor(code, message, data) {
+    super(message)
+    this.name = 'BridgeError'
+    this.code = code
+    this.data = data
+  }
+}
+
+/** A transport-level failure (spawn, crash, malformed frame, timeout). */
+export class BridgeTransportError extends Error {
+  constructor(message, cause) {
+    super(message)
+    this.name = 'BridgeTransportError'
+    if (cause !== undefined) this.cause = cause
+  }
+}
+
+/**
+ * Spawn the bridge and expose request/notify over its stdio.
+ *
+ * @param options - executable, arguments, working directory and environment.
+ * @returns the connected client.
+ */
+export function startBridge(options) {
+  const child = spawn(options.command, options.args, {
+    cwd: options.cwd,
+    env: options.env,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+  return new BridgeClient(child, options)
+}
+
+class BridgeClient {
+  constructor(child, options) {
+    this.child = child
+    this.options = options
+    this.nextId = 1
+    /** id -> {resolve, reject, timer} */
+    this.pending = new Map()
+    this.closed = false
+    this.exit = new Promise((resolve) => {
+      child.once('exit', (code, signal) => {
+        this.closed = true
+        this.failAll(new BridgeTransportError(`the phone bridge exited (code=${code ?? 'null'} signal=${signal ?? 'null'})`))
+        resolve({ code, signal })
+      })
+    })
+    child.once('error', (error) => {
+      this.failAll(new BridgeTransportError('the phone bridge could not be started: ' + error.message, error))
+    })
+    const stdout = createInterface({ input: child.stdout, crlfDelay: Infinity })
+    stdout.on('line', (line) => this.receive(line))
+    // The bridge writes diagnostics to stderr; keep them for the host log
+    // without ever parsing them as protocol frames.
+    const stderr = createInterface({ input: child.stderr, crlfDelay: Infinity })
+    stderr.on('line', (line) => this.options.onStderr?.(line))
+  }
+
+  receive(line) {
+    const text = line.trim()
+    if (text === '') return
+    let message
+    try {
+      message = JSON.parse(text)
+    } catch {
+      // A non-protocol line is a bridge diagnostic that reached stdout; the
+      // bridge never does this, so record it instead of desynchronizing.
+      this.options.onStderr?.(text)
+      return
+    }
+    if (message === null || typeof message !== 'object' || message.id === undefined) return
+    const entry = this.pending.get(message.id)
+    if (entry === undefined) return
+    this.pending.delete(message.id)
+    clearTimeout(entry.timer)
+    if (message.error !== undefined) {
+      const error = message.error
+      entry.reject(new BridgeError(error?.code ?? -32603, String(error?.message ?? 'bridge error'), error?.data))
+    } else {
+      entry.resolve(message.result)
+    }
+  }
+
+  failAll(error) {
+    for (const entry of this.pending.values()) {
+      clearTimeout(entry.timer)
+      entry.reject(error)
+    }
+    this.pending.clear()
+  }
+
+  /**
+   * Send one request and await its result.
+   *
+   * @param method - the MCP method name.
+   * @param params - the method parameters.
+   * @param timeoutMs - per-request bound; the bridge's own budgets are lower.
+   * @returns the JSON-RPC result.
+   */
+  request(method, params, timeoutMs) {
+    if (this.closed) return Promise.reject(new BridgeTransportError('the phone bridge is not running'))
+    const id = this.nextId++
+    const frame = JSON.stringify({ jsonrpc: '2.0', id, method, params: params ?? {} })
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id)
+        reject(new BridgeTransportError(`the phone bridge did not answer ${method} within ${timeoutMs} ms`))
+      }, timeoutMs)
+      timer.unref?.()
+      this.pending.set(id, { resolve, reject, timer })
+      this.child.stdin.write(frame + '\n', (error) => {
+        if (error === undefined || error === null) return
+        this.pending.delete(id)
+        clearTimeout(timer)
+        reject(new BridgeTransportError(`sending ${method} to the phone bridge failed: ${error.message}`, error))
+      })
+    })
+  }
+
+  /** Stop the bridge, ending the input stream so its tool worker drains first. */
+  async stop(graceMs) {
+    if (this.closed) {
+      await this.exit
+      return
+    }
+    this.child.stdin.end()
+    const timer = setTimeout(() => {
+      // The bridge did not drain in time; a stuck child must not hold the host.
+      this.child.kill('SIGKILL')
+    }, graceMs)
+    timer.unref?.()
+    try {
+      await this.exit
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+}
