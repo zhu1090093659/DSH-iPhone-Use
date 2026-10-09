@@ -74,7 +74,50 @@ async function sessionStep(port, tool, args) {
   }
 }
 
-const MOCK = '/tmp/dsh-mock-pkg/package/lib/index.js'
+/**
+ * Fetch the official mock LLM server into this run's own work directory.
+ *
+ * The scripted model is only a front end that decides which phone tool to
+ * call; the device work itself is always real. Packing it per run keeps this
+ * script free of machine-specific paths.
+ *
+ * @returns the absolute path of the package's library entry.
+ */
+/**
+ * Read one tool result back into an object.
+ *
+ * A result the host considers too large to keep inline arrives truncated,
+ * so a failed parse is reported as a partial value rather than thrown: the
+ * caller asserts on the fields it cares about and the failure stays visible
+ * instead of being mistaken for a successful read.
+ *
+ * @param entry - the parsed tool_result event.
+ * @returns the bridge payload, or a marker describing why it has none.
+ */
+function parseResult(entry) {
+  const text = entry?.result
+  if (typeof text !== 'string') return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { __unparsable: true, __bytes: text.length, __tail: text.slice(-120) }
+  }
+}
+
+function prepareMock() {
+  const vendor = join(WORK, 'mock')
+  mkdirSync(vendor, { recursive: true })
+  const packed = execFileSync('npm', ['pack', '@deepseek-ai/dsh-llm-mock-server', '--pack-destination', vendor], {
+    encoding: 'utf8', stdio: 'pipe',
+  }).trim().split('\n').pop()
+  execFileSync('tar', ['xzf', join(vendor, packed), '-C', vendor], { stdio: 'ignore' })
+  const entry = join(vendor, 'package', 'lib', 'index.js')
+  if (!existsSync(entry)) throw new Error('the mock package shipped no library entry')
+  return entry
+}
+
+/** Set once the mock package is fetched; used by every scripted session. */
+let MOCK = ''
 const TEMPLATE = `- id: llm-pi-ai
   config:
     providers:
@@ -111,8 +154,9 @@ async function main() {
   record('the plugin installs into an isolated DSH home', existsSync(join(HOME, 'profiles', PROFILE, 'node_modules', 'dsh-iphone-use')))
 
   // 4. Read the real screen and state from a DSH session.
-  const observe = await sessionStep(19031, 'pua_observe', { mode: 'both' })
-  const observed = observe.result?.result === undefined ? {} : JSON.parse(observe.result.result)
+  MOCK = prepareMock()
+  const observe = await sessionStep(19031, 'pua_observe', { mode: 'screenshot' })
+  const observed = parseResult(observe.result)
   record('a DSH session read the screen/state', observe.result?.status === 'completed' && observed.app !== undefined,
     'app=' + observed.app + ' viewport=' + JSON.stringify(observed.viewport ?? null))
   const shot = observed.image?.path
@@ -120,7 +164,7 @@ async function main() {
 
   // 5. Perform one safe action from a DSH session.
   const action = await sessionStep(19032, 'pua_launch_app', { bundle_id: BUNDLE })
-  const acted = action.result?.result === undefined ? {} : JSON.parse(action.result.result)
+  const acted = parseResult(action.result)
   record('a DSH session performed a safe action', action.result?.status === 'completed' && acted.action_executed === true,
     JSON.stringify(acted))
 
