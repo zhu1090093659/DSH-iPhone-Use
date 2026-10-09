@@ -109,6 +109,13 @@ async function main() {
     record('the answer is the bridge\'s own value', typeof result?.result === 'string' && result.result.includes('latency_scope'))
     const advertised = mock.advertised()
     record('all 17 model-visible pua tools reach the model', advertised.length === 17, advertised.join(','))
+    // The bundled skills must land in the real session catalog, not just in
+    // the unit-test stub: their descriptions are what the host composes into
+    // the model's prompt.
+    const prompt = mock.promptText()
+    for (const skill of ['iphone-use', 'iphone-use-setup']) {
+      record(`the session catalog carries the "${skill}" skill`, prompt.includes(skill))
+    }
 
     // The installed copy must resolve its own assets. The fake checkout proves
     // it: a plugin that reached back into the development tree would still
@@ -245,23 +252,38 @@ async function startMock() {
     toolArguments: JSON.stringify({}),
     successText: 'E2E-FINAL',
   })
-  const advertised = () => {
-    const names = new Set()
+  /** Every request body the mock accepted, as parsed JSON. */
+  const bodies = () => {
+    const parsed = []
     for (const request of server.requests ?? []) {
       let body = request.body
       if (typeof body === 'string') {
         try { body = JSON.parse(body) } catch { continue }
       }
-      for (const tool of body?.tools ?? []) {
+      if (body !== null && typeof body === 'object') parsed.push(body)
+    }
+    return parsed
+  }
+  const advertised = () => {
+    const names = new Set()
+    for (const body of bodies()) {
+      for (const tool of body.tools ?? []) {
         const name = tool?.function?.name ?? tool?.name
         if (typeof name === 'string' && name.startsWith('pua_')) names.add(name)
       }
     }
     return [...names].sort()
   }
+  /**
+   * The whole model-facing prompt text of every request. The skill catalog the
+   * host composes reaches the model inside this text, so its presence here is
+   * how the bundled skills are proven to have been published.
+   */
+  const promptText = () => JSON.stringify(bodies())
   await sleep(200)
   return {
     advertised,
+    promptText,
     stop: async () => { await server.close() },
   }
 }

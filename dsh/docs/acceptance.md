@@ -12,7 +12,7 @@
 ## 一键复核
 
 ```sh
-node dsh/scripts/verify-e2e.mjs                              # 22/22 通过
+node dsh/scripts/verify-e2e.mjs                              # 24/24 通过
 sh scripts/check.sh                                          # 仓库门禁
 node --test --test-timeout=40000 'dsh/plugin/test/*.test.js' # 28 个插件测试
 ```
@@ -32,6 +32,8 @@ PASS  the answer is the bridge's own value
 PASS  all 17 model-visible pua tools reach the model — pua_apps,pua_batch,pua_collect_list,
       pua_doctor,pua_find,pua_launch_app,pua_metrics,pua_observe,pua_press_button,pua_ready,
       pua_screen,pua_scroll_find,pua_setup,pua_swipe,pua_tap,pua_type_text,pua_wait
+PASS  the session catalog carries the "iphone-use" skill
+PASS  the session catalog carries the "iphone-use-setup" skill
 PASS  the profile installs the package itself
 PASS  the installed package ships server/iphone_use.py
 PASS  the installed package ships skills/iphone-use/SKILL.md
@@ -45,7 +47,7 @@ PASS  the bundle row is gone
 PASS  the dependency is gone
 PASS  the user's real DSH home was untouched
 
-22/22 checks passed
+24/24 checks passed
 ```
 
 其中 `a session runs with no Codex installed or configured` 是目标 1「没有暗中回退到 Codex」的
@@ -91,6 +93,7 @@ PASS  the user's real DSH home was untouched
 | 在隔离干净 `DSH_HOME` 下按文档安装并启用 | 通过 | `DSH_HOME=/tmp/... dsh plugin --profile iue2e add <tarball>` |
 | 宿主识别插件 | 通过 | `--dump-config` 输出 `- id: iphone-use / name: dsh-iphone-use`；`--dump-config-schema` 退出 0（无 loader 警告） |
 | 会话发现并调用 iPhone 工具 | 通过 | 真实 headless 会话向模型通告 17 个 `pua_*` 工具并成功调用 |
+| 随包技能进入真实会话目录 | 通过 | e2e 从 mock 捕获的请求体中检出 `iphone-use` 与 `iphone-use-setup` 两条技能目录项 |
 | 禁用/卸载清理工具与资源 | 通过 | `dsh plugin remove` 后 `bundles` 与 `dependencies` 均不含 `dsh-iphone-use`（`test_install_composes_the_row_and_uninstall_removes_it`） |
 | 生命周期释放（工具/技能/子进程） | 通过 | `lifecycle.test.js`：挂载注册 17 个工具 + 2 个技能，dispose 后注册表清空且受管子进程被回收 |
 | 不污染用户现有 DSH 配置 | 通过 | `test_isolated_home_is_the_only_one_written` 与 e2e 的 `the user's real DSH home was untouched` |
@@ -101,6 +104,7 @@ PASS  the user's real DSH home was untouched
 | --- | --- | --- |
 | 能力盘点与前后对照清单 | 通过 | [`migration-inventory.md`](migration-inventory.md)（宿主适配、工具对照、Codex 耦合处置） |
 | 核心能力仍可由 DSH 调用 | 通过 | 17 个模型工具与 2 个面板工具全部注册；`tools.generated.json` 从 `server/iphone_use.py` 生成并由 `--check` 守住 |
+| 技能指引随包可用 | 通过 | 两个 `SKILL.md` 作为运行时技能注册，并在真实会话目录中可见；dispose 时一并移除 |
 | **真机闭环（≥1 个）** | **未验证** | **本机没有连接真实 iPhone，见下节** |
 | 缺失/授权不足时的清晰报告 | 通过 | `pua_ready` 返回 `pua_unreachable` + `initialization_required` + 下一步 `pua_setup`；决不伪造 |
 
