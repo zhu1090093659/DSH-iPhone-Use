@@ -16,7 +16,7 @@
 
 必须调用宿主可用的提问功能提示用户接管，不只在普通消息或 final 中写“完成后回复继续”。提问说明实际 App、阻塞步骤、用户要完成的动作和随后继续的工作；第一个选项固定为 **「已完成继续」**，第二个可用「暂时无法完成」。问题只询问是否已完成手机上的操作，不收集密码、PIN 或验证码。
 
-先调用宿主自带的提问工具（DSH 用 `ask_user_question`，Codex Default 模式用 `functions.request_user_input_async`），例如当前明确显示 Face ID 时：
+先调用宿主自带的提问工具（DSH 装载问答工具时为 `ask_user_question`，Codex Default 模式为 `functions.request_user_input_async`；精简 profile 未挂载时用本回合可用的等价工具），例如当前明确显示 Face ID 时：
 
 ```json
 {
