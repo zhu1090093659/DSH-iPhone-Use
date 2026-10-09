@@ -124,6 +124,23 @@ node dsh/scripts/verify-device.mjs --bundle com.apple.mobilesafari
 右侧栏的「手机屏幕」页显示实时画面，并带刷新 / 主屏幕 / 截图三个按钮。
 点击页面里的按钮是用户自己的操作，不属于模型工具调用。
 
+打开方式有三种，都已在真机 + 真实 Chrome 上验证：
+
+1. 点右侧栏的「+」或向导页里的「手机屏幕」条目；
+2. 模型调用 `pua_screen(action="open")` 时自动唤出（面板不会在用户手动关闭后
+   反复弹出，只在每次新的请求时打开一次）；
+3. 会话里直接用 `pua_observe(mode="screenshot")` 让模型取图，不必开面板。
+
+面板以「手机屏幕」为标题、右上角显示当前设备名（例如 `iPhone 17`）与状态
+（`实时` / `未连接` / `已暂停`）。画面对应的接口是
+`/iphone-use/frame`（宿主提供，只服务本机回环请求）。
+
+可用一条命令在真实浏览器里验证该 tab：
+
+```sh
+node dsh/scripts/verify-panel.mjs
+```
+
 ## 5. 配置
 
 插件行的配置写在 profile 的 `cordis.patch.yml` 中。最常用的两项：

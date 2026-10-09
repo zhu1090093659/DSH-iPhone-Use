@@ -106,6 +106,7 @@ PASS  the user's real DSH home was untouched
 | 核心能力仍可由 DSH 调用 | 通过 | 17 个模型工具与 2 个面板工具全部注册；`tools.generated.json` 从 `server/iphone_use.py` 生成并由 `--check` 守住 |
 | 技能指引随包可用 | 通过 | 两个 `SKILL.md` 作为运行时技能注册，并在真实会话目录中可见；dispose 时一并移除 |
 | **真机闭环（≥1 个）** | **通过（真机实测）** | 见下节；`node dsh/scripts/verify-device.mjs` → **7/7 通过** |
+| 右侧栏 tab 真实渲染（真机画面） | 通过 | `node dsh/scripts/verify-panel.mjs` → **7/7 通过**；Chrome 实测 tab 打开后显示 1206x2622 实帧，状态「实时」 |
 | 缺失/授权不足时的清晰报告 | 通过 | `pua_ready` 返回 `pua_unreachable` + `initialization_required` + 下一步 `pua_setup`；决不伪造 |
 
 ### 真机闭环实测记录
@@ -208,6 +209,9 @@ PASS  the action is verifiable in the device state - foreground=com.apple.Prefer
 | `af8f414` | 修复 Xcode 27 真机被静默过滤（`reality` 字段消失）+ 3 个回归测试 |
 | `d92f999` | 修复新设备无法注册（补 `-allowProvisioningDeviceRegistration`） |
 | `a76f6cc` | 真机闭环验收脚本 `verify-device.mjs`（无真机则拒绝运行） |
+| `3f8eba9` | 记录真机闭环验收结果 |
+| `fd9447b` | 修复右侧栏 tab：guide 缺 `order`、唤出监听位置错误、帧被重复轮询清空 |
+| `3f5632f` | 浏览器端 tab 验收脚本 `verify-panel.mjs` |
 
 ### 产物位置
 
@@ -220,7 +224,8 @@ PASS  the action is verifiable in the device state - foreground=com.apple.Prefer
 
 1. **真机动作范围有限**：已在真实 iPhone 17 上完成闭环，但只执行了「打开设置」这一安全动作；
    点击、输入、滚动、批处理与任何改动用户数据的操作未在真机上执行（按任务边界，不做破坏性操作）。
-   面板在 DSH 桌面端的真机点击渲染未验证。
+   右侧栏 tab 已在真实 Chrome（DSH web profile）中点击验证并显示真机实帧；
+   桌面 Electron 壳内的同一 tab 未单独点击验证（壳由应用独占，自动化不改其 profile）。
 2. **DSH 版本范围**：仅在 `0.2.0-rc.2` 实测。客户端半依赖 `__ModuleLoader__` 模块表；
    宿主升级后需重新验证面板注册契约（`sidebar.right.pane.tab` 的 `useTabInfo` 由 slot 拥有者注入）。
 3. **面板平台**：需要 `webServer` 服务（Web/桌面 profile）；纯 TUI profile 只有工具、没有面板。
