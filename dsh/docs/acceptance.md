@@ -12,9 +12,9 @@
 ## 一键复核
 
 ```sh
-node dsh/scripts/verify-e2e.mjs          # 13/13 通过
-sh scripts/check.sh                       # 仓库门禁
-cd dsh/plugin && node --test test/        # 19 个插件测试
+node dsh/scripts/verify-e2e.mjs                              # 20/20 通过
+sh scripts/check.sh                                          # 仓库门禁
+node --test --test-timeout=40000 'dsh/plugin/test/*.test.js' # 28 个插件测试
 ```
 
 `verify-e2e.mjs` 的实际结果（本机）：
@@ -32,12 +32,24 @@ PASS  the answer is the bridge's own value
 PASS  all 17 model-visible pua tools reach the model — pua_apps,pua_batch,pua_collect_list,
       pua_doctor,pua_find,pua_launch_app,pua_metrics,pua_observe,pua_press_button,pua_ready,
       pua_screen,pua_scroll_find,pua_setup,pua_swipe,pua_tap,pua_type_text,pua_wait
+PASS  the profile installs the package itself
+PASS  the installed package ships server/iphone_use.py
+PASS  the installed package ships skills/iphone-use/SKILL.md
+PASS  the installed package ships skills/iphone-use-setup/SKILL.md
+PASS  the installed package ships tools.generated.json
+PASS  the installed package ships client.js
+PASS  the installed plugin works with the checkout absent
 PASS  the bundle row is gone
 PASS  the dependency is gone
 PASS  the user's real DSH home was untouched
 
-13/13 checks passed
+20/20 checks passed
 ```
+
+其中 `the installed plugin works with the checkout absent` 是最强的一条自足性证据：
+脚本把开发用的 checkout 目录整体改名移走，再从该目录之外启动 profile，会话仍成功调用
+`pua_metrics` 并拿到桥接层返回值——说明安装后的插件完全从自身解析 `server/`、`skills/`
+与 `tools.generated.json`，不依赖开发机上的仓库路径。
 
 ## 目标 1：主运行链路由 DSH 驱动（无 Codex 回退）
 
@@ -61,6 +73,7 @@ PASS  the user's real DSH home was untouched
 | 可重复的构建/打包命令 | 通过 | `node dsh/scripts/build.mjs` → `dsh/dist/dsh-iphone-use-1.0.0.tgz`（154.5 kB，36 个文件） |
 | 走 DSH 官方安装机制 | 通过 | `dsh plugin --profile <p> add <tarball>`，`dsh.profile.bundles` 追加 `dsh-iphone-use` |
 | 产物无本机绝对路径 / 无仓库链接 | 通过 | `test_tarball_is_self_contained` 断言 `index.js`、`client.js` 不含构建机家目录；入口用 `import.meta.url` 解析自身 |
+| 安装后自足：不依赖开发机 checkout | 通过 | e2e 把 checkout 改名移走后再跑会话，仍 `status=completed`；`findAssetDirectory` 优先包内路径，开发回退以源码树标记为闸门 |
 | 未修改 DSH 核心源码 | 通过 | 只调用 `ctx.tools`、`ctx.webServer`、`ctx.sidebarRightTabs`、`ctx.slots`、`ctx.effect`、`ctx.inject` 与 `dsh plugin` CLI |
 
 ## 目标 3：干净配置下的安装体验
@@ -71,6 +84,7 @@ PASS  the user's real DSH home was untouched
 | 宿主识别插件 | 通过 | `--dump-config` 输出 `- id: iphone-use / name: dsh-iphone-use`；`--dump-config-schema` 退出 0（无 loader 警告） |
 | 会话发现并调用 iPhone 工具 | 通过 | 真实 headless 会话向模型通告 17 个 `pua_*` 工具并成功调用 |
 | 禁用/卸载清理工具与资源 | 通过 | `dsh plugin remove` 后 `bundles` 与 `dependencies` 均不含 `dsh-iphone-use`（`test_install_composes_the_row_and_uninstall_removes_it`） |
+| 生命周期释放（工具/技能/子进程） | 通过 | `lifecycle.test.js`：挂载注册 17 个工具 + 2 个技能，dispose 后注册表清空且受管子进程被回收 |
 | 不污染用户现有 DSH 配置 | 通过 | `test_isolated_home_is_the_only_one_written` 与 e2e 的 `the user's real DSH home was untouched` |
 
 ## 目标 4：功能对齐
@@ -115,7 +129,9 @@ WDA 需要通过 USB 在真实设备上签名并运行，模拟器无法替代�
 | 缺少权限/未配置 | 通过 | `pua_doctor` 返回 `checks.configured=false`、`manual_checks.*="user_check_required"` |
 | 连接失败 / 解释器缺失 | 通过 | `bridge.test.js`：`the phone bridge could not be started: ... ENOENT` |
 | 连接早退 | 通过 | `the phone bridge exited (code=3 signal=null)` |
-| 超时 / 取消 | 通过 | `the phone bridge did not answer tools/call within 400 ms` |
+| 超时 | 通过 | `the phone bridge did not answer tools/call within 400 ms` |
+| 调用方取消 | 通过 | `exec.signal` 转发至桥接请求；取消立即结算，且文案不谎称动作已撤销（`the phone may still finish the accepted operation`） |
+| 权限不足 | 通过 | 存在但不可执行的入口报 `could not be started` 并保留系统原因（EACCES） |
 | 宿主关闭清理资源 | 通过 | `stop()` 以 stdin 结束 → 宽限 → SIGKILL；spawn 失败也结算，不再挂起（`b4e7c92` 修复） |
 | 工作台面板错误可读 | 通过 | 伪造 `Host` → 403；非法 action → 400 `invalid_argument` |
 | 未夸大版本/平台 | 通过 | 文档只声明在 macOS + DSH `0.2.0-rc.2` 实测 |
@@ -138,7 +154,7 @@ WDA 需要通过 USB 在真实设备上签名并运行，模拟器无法替代�
 | 验收项 | 结果 | 证据 |
 | --- | --- | --- |
 | 构建、类型检查、测试通过 | 通过 | `sh scripts/check.sh`；19 个插件测试；13/13 e2e |
-| 新增安装/加载/调用/清理与错误路径测试 | 通过 | `dsh/plugin/test/{host,bridge}.test.js`、`tests/test_dsh_plugin.py` |
+| 新增安装/加载/调用/清理与错误路径测试 | 通过 | `dsh/plugin/test/{host,bridge,lifecycle}.test.js`（28 个）、`tests/test_dsh_plugin.py`（12 个） |
 | 复核最终 diff | 通过 | 见下方提交列表；均为本任务文件 |
 | 兼容范围与剩余限制 | 通过 | 见本节与「已知限制」 |
 | 每批改动立即提交 | 通过 | 6 个提交，逐个只暂存本任务文件 |
@@ -154,6 +170,8 @@ WDA 需要通过 USB 在真实设备上签名并运行，模拟器无法替代�
 | `fa25150` | 宿主中立文案 + 13 个宿主侧测试 |
 | `b4e7c92` | 桥接启动失败与关闭挂起修复 + 6 个传输测试 |
 | `0e7ebed` | 一键端到端验证脚本 |
+| `5ee6d4e` | 资产解析同时支持源码树与安装包 + 6 个生命周期测试 + e2e 自足性证明 |
+| `0310f5a` | 调用方取消（`exec.signal`）与权限失败原因透传 + 3 个测试 |
 
 ### 产物位置
 

@@ -36,9 +36,19 @@ node dsh/scripts/install.mjs --profile <你的 profile 名>
 2. 打包出 `dsh/dist/dsh-iphone-use-<版本>.tgz`；
 3. 用官方机制 `dsh plugin --profile <profile> add <tarball>` 安装。
 
-**注意** `desktop` profile 由 Electron 应用独占，命令行无法写入。若你使用
-DSH 桌面应用，请在应用的插件页面安装同一条 tarball；若你用命令行启动
-profile，任选一个 CLI 管理的 profile 名即可。
+**注意** `desktop` profile 由 Electron 应用独占，命令行无法写入（`dsh plugin
+--profile desktop ...` 会被拒绝）。若你使用 DSH 桌面应用，这是预期行为，不是
+安装失败——桌面应用自己管理该 profile 的 bundle 列表与依赖：
+
+- 在本机 `~/.dsh/profiles/desktop/package.json` 可以看到它的 `dsh.profile.bundles`
+  与 `dependencies`（例如已有的 `dsh-web`、`dsh-free-search` 等第三方插件），
+  说明桌面端确实从该 profile 加载插件；把同一条 tarball 通过应用自己的插件
+  入口加入即可。
+- 若你用命令行启动 profile，任选一个 CLI 管理的 profile 名（`install.mjs`
+  默认走这条路径，并在隔离的 `DSH_HOME` 中验证）。
+
+本仓库的自动化验证一律使用 CLI 管理的隔离 profile，**不会**读写你真实的
+`~/.dsh/profiles/desktop`。
 
 安装完成后重启该 profile（或按 profile 的 HMR 配置重载）。
 
@@ -49,6 +59,15 @@ node dsh/scripts/install.mjs --profile <profile> --from "$(pwd)/dsh/dist/dsh-iph
 ```
 
 先运行 `node dsh/scripts/build.mjs --stage` 生成未打包目录。
+
+### 桌面应用（desktop profile）
+
+命令行不能写 `desktop` profile，这是 DSH 的设计。两种可行方式：
+
+1. 用桌面应用自身的插件入口安装同一条 tarball（推荐，profile 仍由应用管理）。
+2. 若你要在命令行下使用，创建一个自己的 profile：
+   `node dsh/scripts/install.mjs --profile mydsh`，然后用
+   `dsh --profile mydsh web` 启动。
 
 ### 隔离验证（不污染现有 DSH 配置）
 
