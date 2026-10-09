@@ -59,15 +59,29 @@ class BridgeClient {
     /** id -> {resolve, reject, timer} */
     this.pending = new Map()
     this.closed = false
-    this.exit = new Promise((resolve) => {
-      child.once('exit', (code, signal) => {
-        this.closed = true
-        this.failAll(new BridgeTransportError(`the phone bridge exited (code=${code ?? 'null'} signal=${signal ?? 'null'})`))
-        resolve({ code, signal })
-      })
+    /** A terminal failure every later request must report instead of hanging. */
+    this.failure = undefined
+    let settled = false
+    const settleExit = (result) => {
+      if (settled) return
+      settled = true
+      this.closed = true
+      resolveExit(result)
+    }
+    let resolveExit
+    this.exit = new Promise((resolve) => { resolveExit = resolve })
+    child.once('exit', (code, signal) => {
+      this.failAll(new BridgeTransportError(`the phone bridge exited (code=${code ?? 'null'} signal=${signal ?? 'null'})`))
+      settleExit({ code, signal })
     })
     child.once('error', (error) => {
-      this.failAll(new BridgeTransportError('the phone bridge could not be started: ' + error.message, error))
+      // A spawn failure (a missing interpreter, a permission problem) is
+      // terminal: remember it so a request made after the event is rejected
+      // with the same explanation instead of waiting for a timeout, and settle
+      // the exit promise because no `exit` event follows a failed spawn.
+      this.failure = new BridgeTransportError('the phone bridge could not be started: ' + error.message, error)
+      this.failAll(this.failure)
+      settleExit({ code: null, signal: null })
     })
     const stdout = createInterface({ input: child.stdout, crlfDelay: Infinity })
     stdout.on('line', (line) => this.receive(line))
@@ -119,6 +133,9 @@ class BridgeClient {
    * @returns the JSON-RPC result.
    */
   request(method, params, timeoutMs) {
+    // Report the original cause when there is one: "not running" alone does not
+    // tell a user whether the interpreter is missing or the child crashed.
+    if (this.failure !== undefined) return Promise.reject(this.failure)
     if (this.closed) return Promise.reject(new BridgeTransportError('the phone bridge is not running'))
     const id = this.nextId++
     const frame = JSON.stringify({ jsonrpc: '2.0', id, method, params: params ?? {} })
@@ -129,12 +146,20 @@ class BridgeClient {
       }, timeoutMs)
       timer.unref?.()
       this.pending.set(id, { resolve, reject, timer })
-      this.child.stdin.write(frame + '\n', (error) => {
-        if (error === undefined || error === null) return
+      const settle = (error) => {
         this.pending.delete(id)
         clearTimeout(timer)
-        reject(new BridgeTransportError(`sending ${method} to the phone bridge failed: ${error.message}`, error))
-      })
+        reject(error)
+      }
+      try {
+        this.child.stdin.write(frame + '\n', (error) => {
+          if (error === undefined || error === null) return
+          settle(new BridgeTransportError(`sending ${method} to the phone bridge failed: ${error.message}`, error))
+        })
+      } catch (error) {
+        // A write on an already-destroyed stream throws instead of calling back.
+        settle(new BridgeTransportError(`sending ${method} to the phone bridge failed: ${error.message}`, error))
+      }
     })
   }
 

@@ -9,7 +9,7 @@ export IPHONE_USE_ANALYTICS=0
 # suite cannot run on this machine.
 python3 dsh/scripts/emit_tools.py --check
 node dsh/scripts/build.mjs
-node --test dsh/plugin/test/
+node --test --test-timeout=20000 dsh/plugin/test/
 python3 -m unittest discover -s tests -v
 python3 scripts/package.py --validate-only
 node --check tooling/forward.mjs
