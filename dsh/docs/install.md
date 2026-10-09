@@ -92,6 +92,26 @@ DSH_HOME="$DSH_HOME" dsh plugin --profile iuverify list
 
 以 `pua_ready` 返回 `ready=true` 为准，再开始手机任务。
 
+### 签名常见问题（真机实测）
+
+- **`No Account for Team "<ID>"`**：该团队只有证书、没有在 Xcode 登录 Apple ID。
+  打开 Xcode → Settings → Accounts 添加账号；或改用 Xcode 里已登录的团队。
+- **`Device ... isn't registered in your developer account`**：新设备尚未注册。
+  本插件构建时已带上 `-allowProvisioningDeviceRegistration`，会自动注册；若仍报错，
+  打开 Xcode → Window → Devices and Simulators 让 Xcode 先完成一次配对注册。
+- **个人/免费团队**：provisioning 通常 7 天过期，重跑一次 `pua_setup` `start`（或
+  `build`）即可续期，不需要重新配置。
+
+### 真机验收
+
+接入真机后，用一条命令做端到端验收（没有 physical 设备时脚本会直接拒绝运行，
+不会用模拟器冒充）：
+
+```sh
+node dsh/scripts/verify-device.mjs            # 默认动作：打开系统「设置」
+node dsh/scripts/verify-device.mjs --bundle com.apple.mobilesafari
+```
+
 ## 4. 在 DSH 会话中调用
 
 新会话里，工具会以 `pua_*` 出现在模型工具表中。示例：

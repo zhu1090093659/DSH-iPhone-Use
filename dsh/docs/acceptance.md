@@ -105,30 +105,47 @@ PASS  the user's real DSH home was untouched
 | 能力盘点与前后对照清单 | 通过 | [`migration-inventory.md`](migration-inventory.md)（宿主适配、工具对照、Codex 耦合处置） |
 | 核心能力仍可由 DSH 调用 | 通过 | 17 个模型工具与 2 个面板工具全部注册；`tools.generated.json` 从 `server/iphone_use.py` 生成并由 `--check` 守住 |
 | 技能指引随包可用 | 通过 | 两个 `SKILL.md` 作为运行时技能注册，并在真实会话目录中可见；dispose 时一并移除 |
-| **真机闭环（≥1 个）** | **未验证** | **本机没有连接真实 iPhone，见下节** |
+| **真机闭环（≥1 个）** | **通过（真机实测）** | 见下节；`node dsh/scripts/verify-device.mjs` → **7/7 通过** |
 | 缺失/授权不足时的清晰报告 | 通过 | `pua_ready` 返回 `pua_unreachable` + `initialization_required` + 下一步 `pua_setup`；决不伪造 |
 
-### 真机闭环为何未验证（如实记录）
+### 真机闭环实测记录
+
+后续用户接入真机后完成。**这是真实硬件，不是模拟器**：脚本在没有 physical 设备时直接
+拒绝运行，模拟器无法冒充。
+
+- 设备：iPhone 17（`iPhone18,3`），iOS 27.0，UDID `00008150-001C225C3EBB401C`，USB 有线
+- 宿主：DSH `0.2.0-rc.2`；WDA 16.14.0（`d177824`）；签名团队 `P7595YVTRB`
+- 日志：`~/.local/share/iphone-use/logs/<job>.log`；截图：`~/.local/share/iphone-use/artifacts/`
+- 命令：`node dsh/scripts/verify-device.mjs`
 
 ```text
-$ xcrun devicectl list devices
-Wordbook Demo     ...  simulated
-Wordbook Reclaim  ...  simulated
-$ system_profiler SPUSBDataType | grep -c -i iphone
-0
-$ xcrun simctl list devices booted
-(空)
+PASS  a physical iPhone is connected - iPhone 00008150-001C225C3EBB401C connected iPhone 17 (iPhone18,3) physical
+PASS  the phone is READY - {"status_ready":true,"phone_unlocked":true,"session_usable":true,
+      "foreground_resolved":true,"source_readable":true,"viewport_readable":true}
+PASS  the plugin installs into an isolated DSH home
+PASS  a DSH session read the screen/state - app=com.apple.Preferences viewport={"width":402,"height":874}
+PASS  the observation carried a real screenshot on disk - .../artifacts/20261009T134153489650Z-3d459583.jpg
+PASS  a DSH session performed a safe action - {"action_executed":true,"action_complete":true}
+PASS  the action is verifiable in the device state - foreground=com.apple.Preferences
+
+7/7 checks passed
 ```
 
-本机只存在两个 **simulated** 设备，没有 USB 连接的真实 iPhone；`xcrun devicectl`
-不列出任何 physical 设备，`system_profiler` 的 USB 树中没有 Apple 移动设备。
-WDA 需要通过 USB 在真实设备上签名并运行，模拟器无法替代。
+闭环的四段都有独立证据：**取状态**（`pua_ready` 的 `proof` 全为 true，设备处于解锁可用态）、
+**取画面**（`pua_observe` 落盘的真实 JPEG，721x1568，人眼可核对为主屏幕/设置页）、
+**执行安全动作**（`pua_launch_app` 打开系统「设置」，`action_executed=true`）、
+**返回可核对结果**（动作后后台独立复核 `foreground=com.apple.Preferences`）。
 
-因此**「在可用设备上完成至少一个真实闭环（取屏幕/状态、执行一次安全动作、返回可检查结果）」
-未完成验证**。已完成的替代证据是本机可执行的最大范围：设备桥接真实启动、真实会话真实调用
-`pua_doctor`/`pua_metrics` 并拿到真实返回值；**没有使用任何 mock 冒充真机验收**。
-真实闭环需要接入一台已信任、已开启开发者模式并解锁的 iPhone 后，按
-[`install.md`](install.md) 第 3 节配置，再运行 `pua_ready` 并执行一次安全动作。
+期间发现并修复两个会**阻断真机**的真实缺陷（均已提交、均带回归测试）：
+
+| 缺陷 | 影响 | 修复 |
+| --- | --- | --- |
+| `parse_devices` 依赖 `hardware.reality` | Xcode 27 不再输出该字段，导致真机被静默过滤，`devices: []` | `af8f414`：改用 `state.visibilityClass`（模拟器为 `simulators`），并以传输方式兜底 |
+| 构建缺少 `-allowProvisioningDeviceRegistration` | 团队未见过的新设备无法注册，签名失败 | `d92f999`：补上该标志（Apple 文档中与 `-allowProvisioningUpdates` 配套的独立开关） |
+
+**未验证的部分（如实记录）**：本次只执行了「打开设置」这一安全的只读型动作，没有执行点击、
+输入、滚动、批处理或任何会改动用户数据的操作；面板（右侧栏实时画面）的真机渲染未在 DSH 桌面端
+点击验证（客户端 bundle 与面板路由已在 web profile 中以离线方式验证）。
 
 ## 目标 5：兼容性与失败处理
 
@@ -188,6 +205,9 @@ WDA 需要通过 USB 在真实设备上签名并运行，模拟器无法替代�
 | `24c67dc` | 端到端证明机器上完全没有 Codex 也可用 |
 | `c888bf7` | 证明随包技能进入真实会话目录 |
 | `983bd94` | 明确提问工具的可用条件（精简 profile 可能未挂载） |
+| `af8f414` | 修复 Xcode 27 真机被静默过滤（`reality` 字段消失）+ 3 个回归测试 |
+| `d92f999` | 修复新设备无法注册（补 `-allowProvisioningDeviceRegistration`） |
+| `a76f6cc` | 真机闭环验收脚本 `verify-device.mjs`（无真机则拒绝运行） |
 
 ### 产物位置
 
@@ -198,7 +218,9 @@ WDA 需要通过 USB 在真实设备上签名并运行，模拟器无法替代�
 
 ## 已知限制
 
-1. **真机闭环未验证**：本机无 USB 真实 iPhone，见目标 4。
+1. **真机动作范围有限**：已在真实 iPhone 17 上完成闭环，但只执行了「打开设置」这一安全动作；
+   点击、输入、滚动、批处理与任何改动用户数据的操作未在真机上执行（按任务边界，不做破坏性操作）。
+   面板在 DSH 桌面端的真机点击渲染未验证。
 2. **DSH 版本范围**：仅在 `0.2.0-rc.2` 实测。客户端半依赖 `__ModuleLoader__` 模块表；
    宿主升级后需重新验证面板注册契约（`sidebar.right.pane.tab` 的 `useTabInfo` 由 slot 拥有者注入）。
 3. **面板平台**：需要 `webServer` 服务（Web/桌面 profile）；纯 TUI profile 只有工具、没有面板。
