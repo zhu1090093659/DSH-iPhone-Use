@@ -617,6 +617,12 @@ class SetupManager:
         return ["xcodebuild", "-project", str(Path(config["source_dir"]) / "WebDriverAgent.xcodeproj"),
                 "-scheme", "WebDriverAgentRunner", "-configuration", "Debug", "-destination", "id=" + config["udid"],
                 "-derivedDataPath", str(self.state_dir / "derived_data"), "-allowProvisioningUpdates",
+                # Registering this device on the developer portal is a separate
+                # opt-in. Without it Xcode refuses with "Device ... isn't
+                # registered in your developer account" for any device the
+                # team has not seen before, which is the common case on a
+                # fresh phone or a fresh Apple ID.
+                "-allowProvisioningDeviceRegistration",
                 "DEVELOPMENT_TEAM=" + config["team_id"], "CODE_SIGN_STYLE=Automatic", "CODE_SIGN_IDENTITY=Apple Development",
                 "PRODUCT_BUNDLE_IDENTIFIER=" + config["bundle_id"], "USE_PORT=" + str(config["device_port"]), action]
 
