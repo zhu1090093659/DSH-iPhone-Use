@@ -73,41 +73,16 @@ window.__ModuleLoader__.load({
       var alive = useRef(true)
       var seqRef = useRef(0)
       var eventRef = useRef(0)
+      // The newest frame the bridge handed out, kept across polls because the
+      // bridge serves each frame once.
+      var lastFrame = useRef(null)
+      var frameMime = useRef('image/jpeg')
 
       useEffect(function () {
         alive.current = true
         return function () { alive.current = false }
       }, [])
 
-      // Reveal the panel when the model asks for the screen (pua_screen).
-      // The host records a monotonic stamp; acting once per new stamp keeps a
-      // user-closed panel closed until the next request.
-      useEffect(function () {
-        var stop = false
-        var acted = 0
-        var timer
-        function check() {
-          if (stop) return
-          fetch(ROUTES.state)
-            .then(function (response) { return response.json() })
-            .then(function (data) {
-              if (stop) return
-              var stamp = data && typeof data.panel_requested_at === 'number' ? data.panel_requested_at : 0
-              if (stamp > 0 && stamp > acted) {
-                acted = stamp
-                try {
-                  if (ctx && ctx.sidebarRight) ctx.sidebarRight.openTab(TAB_KIND)
-                } catch (error) {
-                  /* the panel simply stays closed when the column is unavailable */
-                }
-              }
-            })
-            .catch(function () {})
-          timer = setTimeout(check, 2000)
-        }
-        check()
-        return function () { stop = true; if (timer) clearTimeout(timer) }
-      }, [])
 
       useEffect(function () {
         // Polling stops with the tab's own abort signal, so a closed panel
@@ -126,15 +101,32 @@ window.__ModuleLoader__.load({
             .then(function (response) { return response.json() })
             .then(function (data) {
               if (stopped || !alive.current) return
-              if (data && data.frame && data.frame.seq) seqRef.current = data.frame.seq
+              // The bridge hands each frame out exactly once and answers a
+              // repeat poll with `frame: null`. The newest frame therefore
+              // has to be kept: replacing the whole preview on every poll
+              // would blank the image half a second after it arrived, which
+              // made a live device look offline.
+              if (data && data.frame && typeof data.frame.seq === 'number') {
+                seqRef.current = data.frame.seq
+                lastFrame.current = data.frame
+                if (data.frame.mimeType) frameMime.current = data.frame.mimeType
+              }
               if (data && typeof data.last_event_id === 'number') eventRef.current = data.last_event_id
-              setPreview(data)
+              setPreview(function (previous) {
+                var merged = Object.assign({}, previous || {}, data || {})
+                merged.frame = lastFrame.current
+                merged.frame_mime = frameMime.current
+                // A frame we are still showing keeps the panel live.
+                if (lastFrame.current !== null) merged.frame_available = true
+                return merged
+              })
               setNote(null)
             })
             .catch(function (error) {
               if (stopped || !alive.current) return
               if (error && error.name === 'AbortError') return
-              setPreview(function (previous) { return previous ? Object.assign({}, previous, { frame: null, frame_available: false }) : { frame: null, frame_available: false } })
+              // A transient poll failure must not throw away a frame that is
+              // still on screen; only the connection note is updated.
               setNote(t('无法连接手机桥接：', 'Cannot reach the phone bridge: ') + String(error && error.message ? error.message : error))
             })
             .then(schedule)
@@ -176,12 +168,14 @@ window.__ModuleLoader__.load({
           h('span', { style: { display: 'inline-flex', alignItems: 'center' } }, glyph()),
           h('span', { style: { fontWeight: 600, fontSize: 13 } }, device || t('iPhone', 'iPhone')),
           h('span', { style: { marginLeft: 'auto', fontSize: 11, opacity: live ? 0.9 : 0.6 } }, status)),
-        h('div', { style: { flex: '1 1 auto', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b0b0d', overflow: 'hidden' } },
+        h('div', { style: { flex: '1 1 auto', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0b0b0d', overflow: 'hidden', padding: 4, boxSizing: 'border-box' } },
           frame
             ? h('img', {
               alt: t('手机屏幕', 'iPhone screen'),
-              src: 'data:' + (frame.mimeType || 'image/jpeg') + ';base64,' + frame.data,
-              style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' },
+              src: 'data:' + (frame.mimeType || (preview && preview.frame_mime) || 'image/jpeg') + ';base64,' + frame.data,
+              // Constrain by height first so the whole phone fits the column
+              // instead of being cropped by a wide aspect ratio.
+              style: { maxWidth: '100%', maxHeight: '100%', width: 'auto', height: '100%', objectFit: 'contain', display: 'block' },
             })
             : h('div', { style: { fontSize: 12, opacity: 0.6, padding: 16, textAlign: 'center' } }, paused ? status : t('等待画面…', 'Waiting for a frame...'))),
         note ? h('div', { style: { flex: '0 0 auto', padding: '6px 10px', fontSize: 11, opacity: 0.8, borderTop: '1px solid var(--dsh-border, rgba(128,128,128,0.25))' } }, note) : null,
@@ -211,15 +205,58 @@ window.__ModuleLoader__.load({
         kind: TAB_KIND,
         priority: 'extension',
         title: function () { return t('手机屏幕', 'iPhone Screen') },
+        // The guide entry is what puts this type in the column's default
+        // page. `order` is required by the registry, and a low value keeps
+        // the phone at the top of the list; the description is shown while
+        // the guide lists few enough entries.
         guide: [{
           id: TAB_KIND,
-          title: t('手机屏幕', 'iPhone Screen'),
-          description: t('查看并接管真实 iPhone 的实时画面。', 'Watch a real iPhone live, and take it over when asked.'),
+          order: 10,
+          title: function () { return t('手机屏幕', 'iPhone Screen') },
+          description: function () {
+            return t('实时镜像并接管真实 iPhone 的画面。', 'Mirror a real iPhone live, and take it over when asked.')
+          },
         }],
       }
       ctx.effect(function () {
         return ctx.sidebarRightTabs.register(define)
       }, 'dsh-iphone-use: tab type')
+
+      // Reveal the panel when the model asks to see the screen (pua_screen).
+      // This watcher must live on the plugin, not on the panel body: a body
+      // only mounts once its tab is already open, so a watcher inside it
+      // could never open the tab it lives in. Each new monotonic stamp opens
+      // the tab once, which leaves a user-closed panel closed until the next
+      // request instead of fighting the user.
+      ctx.effect(function () {
+        var stop = false
+        var acted = 0
+        var timer
+        function check() {
+          if (stop) return
+          fetch(ROUTES.state)
+            .then(function (response) { return response.json() })
+            .then(function (data) {
+              if (stop) return
+              var stamp = data && typeof data.panel_requested_at === 'number' ? data.panel_requested_at : 0
+              if (stamp > 0 && stamp > acted) {
+                acted = stamp
+                try {
+                  ctx.sidebarRight.openTab(TAB_KIND)
+                } catch (error) {
+                  /* the column is unavailable in this shell: stay closed */
+                }
+              }
+            })
+            .catch(function () {})
+          timer = setTimeout(check, 2000)
+        }
+        check()
+        return function () {
+          stop = true
+          if (timer) clearTimeout(timer)
+        }
+      }, 'dsh-iphone-use: reveal on request')
       // Stage two: the body under the type's own id. The slot owner supplies
       // `useTabInfo` as a framework prop, so this registration declares no
       // hook of its own.

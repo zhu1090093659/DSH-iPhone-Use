@@ -190,3 +190,32 @@ test('the plugin declares no dependency and never imports a Codex module', () =>
     assert.doesNotMatch(source, /\.codex/)
   }
 })
+test('the guide entry carries the order the tab registry requires', () => {
+  // The registry's SidebarRightGuideEntry makes `order` mandatory; omitting it
+  // used to leave the tab type out of the column's guide entirely, so the
+  // feature existed but could not be reached from the UI.
+  const source = readFileSync(join(PLUGIN, 'client.js'), 'utf8')
+  const guide = source.slice(source.indexOf('guide: ['), source.indexOf('guide: [') + 500)
+  assert.match(guide, /order:\s*\d+/, 'the guide entry must declare a numeric order')
+  assert.match(guide, /id:\s*TAB_KIND/, 'the guide entry must name the kind it opens')
+  assert.match(guide, /title:\s*function/, 'title must be a lazy thunk as the type declares')
+})
+
+test('the panel keeps the newest frame instead of blanking on a repeat poll', () => {
+  // The bridge serves each frame once and answers a repeat poll with a null
+  // frame. Replacing the whole preview every poll blanked a live device half a
+  // second after its first frame, so the panel must accumulate.
+  const source = readFileSync(join(PLUGIN, 'client.js'), 'utf8')
+  assert.match(source, /lastFrame\.current\s*=/, 'the panel must retain the newest frame')
+  assert.match(source, /merged\.frame\s*=\s*lastFrame\.current/, 'a poll must re-attach the retained frame')
+})
+
+test('the panel reveal watcher lives on the plugin, not inside the panel body', () => {
+  // A body only mounts once its tab is open, so a watcher inside it could
+  // never open the tab it lives in.
+  const source = readFileSync(join(PLUGIN, 'client.js'), 'utf8')
+  const applyAt = source.indexOf('function apply(ctx)')
+  const revealAt = source.indexOf('ctx.sidebarRight.openTab(TAB_KIND)')
+  assert.ok(applyAt !== -1 && revealAt !== -1, 'both the plugin body and the reveal call must exist')
+  assert.ok(revealAt > applyAt, 'the reveal call must be inside apply(), not in PhonePanel')
+})
