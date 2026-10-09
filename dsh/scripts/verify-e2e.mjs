@@ -19,7 +19,7 @@
  * fails it reports SKIP for the session step and still checks the rest.
  */
 import { execFile, execFileSync, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -141,9 +141,50 @@ async function main() {
       )
     } finally {
       renameSync(hidden, ROOT)
-      // Stop the mock only after every session has run against it.
-      await mock.stop()
     }
+
+    // Goal 1: the DSH path must not need Codex at all. Run one more session
+    // with Codex hidden from PATH and its config home pointed at nothing, so a
+    // hidden fallback would fail loudly instead of passing unnoticed.
+    const shim = join(WORK, 'no-codex-bin')
+    mkdirSync(shim, { recursive: true })
+    for (const tool of ['node', 'python3', 'sh', 'bash', 'env', 'git', 'xcrun', 'tar']) {
+      const resolved = execFileSync('sh', ['-c', 'command -v ' + tool], { encoding: 'utf8' }).trim()
+      if (resolved === '') continue
+      const link = join(shim, tool)
+      if (existsSync(link)) continue
+      symlinkSync(resolved, link)
+    }
+    const cleanPath = [shim, '/usr/bin', '/bin', '/usr/sbin', '/sbin'].join(':')
+    const codexVisible = execFileSync('sh', ['-c', 'command -v codex || true'], {
+      encoding: 'utf8', env: { PATH: cleanPath },
+    }).trim()
+    record('codex is absent from the session PATH', codexVisible === '', codexVisible)
+    // The shimmed PATH hides Codex but also hides `dsh`; call it absolutely.
+    const dshBinary = execFileSync('sh', ['-c', 'command -v dsh'], { encoding: 'utf8' }).trim()
+    const noCodex = await runAsync(dshBinary, ['--profile', PROFILE, 'headless', '--json', 'call pua_doctor'], {
+      env: {
+        PATH: cleanPath,
+        IU_MOCK_KEY: 'iu-mock-key',
+        IPHONE_USE_ANALYTICS: '0',
+        CODEX_HOME: join(WORK, 'no-such-codex-home'),
+      },
+      cwd: WORK,
+    })
+    const noCodexEvents = noCodex.stdout.trim().split('\n').filter(Boolean)
+      .map((line) => { try { return JSON.parse(line) } catch { return undefined } }).filter(Boolean)
+    const noCodexResult = noCodexEvents.find((event) => event.type === 'tool_result')
+    // The scripted call is pua_metrics, so the marker is a field only the real
+    // bridge produces; a stub or a Codex-mediated path would not have it.
+    const noCodexPayload = String(noCodexResult?.result ?? '')
+    record(
+      'a session runs with no Codex installed or configured',
+      noCodexResult?.status === 'completed' && noCodexPayload.includes('latency_scope'),
+      noCodexResult?.status ?? noCodex.stderr.trim().slice(0, 200),
+    )
+
+    // Stop the mock only after every session has run against it.
+    await mock.stop()
   }
 
   console.log('== 5. uninstall cleans up ==')
@@ -199,7 +240,7 @@ async function startMock() {
     apiKey: 'iu-mock-key',
     // Two sessions run against this server, so script enough steps for both;
     // each session consumes one tool call and one final answer.
-    sequence: ['tool_call_success', 'success', 'tool_call_success', 'success'],
+    sequence: ['tool_call_success', 'success', 'tool_call_success', 'success', 'tool_call_success', 'success'],
     toolName: 'pua_metrics',
     toolArguments: JSON.stringify({}),
     successText: 'E2E-FINAL',

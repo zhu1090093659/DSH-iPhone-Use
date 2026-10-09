@@ -12,7 +12,7 @@
 ## 一键复核
 
 ```sh
-node dsh/scripts/verify-e2e.mjs                              # 20/20 通过
+node dsh/scripts/verify-e2e.mjs                              # 22/22 通过
 sh scripts/check.sh                                          # 仓库门禁
 node --test --test-timeout=40000 'dsh/plugin/test/*.test.js' # 28 个插件测试
 ```
@@ -39,14 +39,21 @@ PASS  the installed package ships skills/iphone-use-setup/SKILL.md
 PASS  the installed package ships tools.generated.json
 PASS  the installed package ships client.js
 PASS  the installed plugin works with the checkout absent
+PASS  codex is absent from the session PATH
+PASS  a session runs with no Codex installed or configured
 PASS  the bundle row is gone
 PASS  the dependency is gone
 PASS  the user's real DSH home was untouched
 
-20/20 checks passed
+22/22 checks passed
 ```
 
-其中 `the installed plugin works with the checkout absent` 是最强的一条自足性证据：
+其中 `a session runs with no Codex installed or configured` 是目标 1「没有暗中回退到 Codex」的
+直接证据：脚本用只含必要工具的 shim PATH 启动会话（`command -v codex` 返回空），并把
+`CODEX_HOME` 指向不存在的目录，会话仍成功调用 `pua_metrics` 并拿到真实桥接返回值；
+任何隐藏的 Codex 依赖都会在这一步失败。
+
+`the installed plugin works with the checkout absent` 是最强的一条自足性证据：
 脚本把开发用的 checkout 目录整体改名移走，再从该目录之外启动 profile，会话仍成功调用
 `pua_metrics` 并拿到桥接层返回值——说明安装后的插件完全从自身解析 `server/`、`skills/`
 与 `tools.generated.json`，不依赖开发机上的仓库路径。
@@ -60,6 +67,7 @@ PASS  the user's real DSH home was untouched
 | 主链路无 Codex 专属依赖 | 通过 | `dsh/plugin/package.json` 无 `dependencies`；`test_plugin_never_shells_out_to_codex` 与 `the plugin declares no dependency...` 断言源码不含 `@deepseek-ai/*`、`.codex` 引用 |
 | 保留设备桥接 | 通过 | 同一个 `server/iphone_use.py`（依赖为零的 MCP stdio 服务）作为受管子进程；`pua_doctor` 在真实会话中返回本机实测数据 |
 | 真实运行证明无隐藏回退 | 通过 | 模型调用 `pua_doctor` 得到实时机器诊断（Xcode 27.0、node v25.8.1、`runtime` 路径等），`pua_metrics` 在前一次调用后计数从 0 变为 1 |
+| 机器上完全没有 Codex 时仍可用 | 通过 | e2e 以 shim PATH（`command -v codex` 为空）+ 不存在的 `CODEX_HOME` 跑会话，`pua_metrics` 仍返回真实桥接值 |
 
 `pua_doctor` 的真实返回（节选）：`{"ok":false,"checks":{"macos":true,"full_xcode":true,
 "git":true,"node":true,"npm":true,"configured":false,"selected_device_present":false},
@@ -186,9 +194,17 @@ WDA 需要通过 USB 在真实设备上签名并运行，模拟器无法替代�
 2. **DSH 版本范围**：仅在 `0.2.0-rc.2` 实测。客户端半依赖 `__ModuleLoader__` 模块表；
    宿主升级后需重新验证面板注册契约（`sidebar.right.pane.tab` 的 `useTabInfo` 由 slot 拥有者注入）。
 3. **面板平台**：需要 `webServer` 服务（Web/桌面 profile）；纯 TUI profile 只有工具、没有面板。
-4. **未验证项**：Windows/Linux 未验证（WDA 与 USB 转发为 macOS 路径）；
+   已在 `web` 模板 profile 上实测：客户端 bundle 进入 boot graph、combo 中包含
+   `sidebar.right.pane.tab`/`PhonePanel`，面板路由返回 `state/frame/action`。
+4. **desktop profile 未被自动验证**：`desktop` 由 Electron 独占，命令行无法写入
+   （`dsh plugin --profile desktop ...` 被明确拒绝），因此自动化验证使用 CLI 管理的
+   隔离 profile，未改动 `~/.dsh/profiles/desktop`。桌面端的插件入口由应用自身管理：
+   本机该 profile 的 `package.json` 已加载 `dsh-web`、`dsh-free-search` 等第三方
+   bundle，说明机制一致；把它换成同一条 `dsh-iphone-use-*.tgz` 即可，这一具体点击
+   路径需要用户在应用中完成（本次不越权改动用户配置）。
+5. **未验证项**：Windows/Linux 未验证（WDA 与 USB 转发为 macOS 路径）；
    ARM/Intel 差异未单独验证；签名证书过期与 iOS 版本升级后的恢复流程沿用原仓库技能，未在本机复验。
-5. **预存在的门禁失败**：`tests/test_controller.FoundationPredicateTests` 因本机 clang
+6. **预存在的门禁失败**：`tests/test_controller.FoundationPredicateTests` 因本机 clang
    工具链损坏（`Toolchain Swift 6.3.1 could not be located`）无法编译探针。基线提交
    `66385cc` 在本机同样失败，与本次改动无关；已在提交信息中记录。
-6. **发布未授权**：未推送远程、未发布 npm、未创建 GitHub Release（按任务边界）。
+7. **发布未授权**：未推送远程、未发布 npm、未创建 GitHub Release（按任务边界）。
