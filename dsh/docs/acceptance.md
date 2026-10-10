@@ -12,12 +12,12 @@
 ## 一键复核
 
 ```sh
-node dsh/scripts/verify-e2e.mjs                              # 24/24 通过
-sh scripts/check.sh                                          # 仓库门禁
-node --test --test-timeout=40000 'dsh/plugin/test/*.test.js' # 28 个插件测试
+node dsh/scripts/verify-e2e.mjs                              # 端到端（项数与汇总以脚本输出为准）
+sh scripts/check.sh                                          # 仓库门禁（含插件单元测试）
+node --test --test-timeout=40000 'dsh/plugin/test/*.test.js' # 插件单元测试
 ```
 
-`verify-e2e.mjs` 的实际结果（本机）：
+`verify-e2e.mjs` 某次本机实际运行的输出（当时记录；脚本每次运行会打印自己的项数与汇总）：
 
 ```text
 PASS  build produces a tarball
@@ -183,35 +183,12 @@ PASS  the action is verifiable in the device state - foreground=com.apple.Prefer
 
 | 验收项 | 结果 | 证据 |
 | --- | --- | --- |
-| 构建、类型检查、测试通过 | 通过 | `sh scripts/check.sh`；19 个插件测试；13/13 e2e |
-| 新增安装/加载/调用/清理与错误路径测试 | 通过 | `dsh/plugin/test/{host,bridge,lifecycle}.test.js`（28 个）、`tests/test_dsh_plugin.py`（12 个） |
-| 复核最终 diff | 通过 | 见下方提交列表；均为本任务文件 |
+| 构建、类型检查、测试通过 | 通过 | `sh scripts/check.sh`（含插件单元测试） |
+| 新增安装/加载/调用/清理与错误路径测试 | 通过 | `dsh/plugin/test/{host,bridge,lifecycle}.test.js` 与 `tests/test_dsh_plugin.py` |
+| 复核最终 diff | 通过 | `git log --stat`；均为本任务文件 |
 | 兼容范围与剩余限制 | 通过 | 见本节与「已知限制」 |
-| 每批改动立即提交 | 通过 | 6 个提交，逐个只暂存本任务文件 |
+| 每批改动立即提交 | 通过 | 每批只暂存本任务文件（见 `git log`） |
 | 不推送/不发布 | 通过 | 未 push、未 npm publish、未创建 Release |
-
-### 提交列表（`66385cc` 起）
-
-| 提交 | 内容 |
-| --- | --- |
-| `a823229` | DSH 宿主驱动的插件包（宿主半 + 客户端半 + 打包/安装/卸载 + 迁移盘点） |
-| `cb55655` | 技能注册、`pua_screen` 唤出面板、桥接错误透传 |
-| `3f9801f` | 12 个插件契约测试并接入 `check.sh` |
-| `fa25150` | 宿主中立文案 + 13 个宿主侧测试 |
-| `b4e7c92` | 桥接启动失败与关闭挂起修复 + 6 个传输测试 |
-| `0e7ebed` | 一键端到端验证脚本 |
-| `5ee6d4e` | 资产解析同时支持源码树与安装包 + 6 个生命周期测试 + e2e 自足性证明 |
-| `0310f5a` | 调用方取消（`exec.signal`）与权限失败原因透传 + 3 个测试 |
-| `674e689` | 刷新验收记录（自足性、取消、桌面 profile 说明） |
-| `24c67dc` | 端到端证明机器上完全没有 Codex 也可用 |
-| `c888bf7` | 证明随包技能进入真实会话目录 |
-| `983bd94` | 明确提问工具的可用条件（精简 profile 可能未挂载） |
-| `af8f414` | 修复 Xcode 27 真机被静默过滤（`reality` 字段消失）+ 3 个回归测试 |
-| `d92f999` | 修复新设备无法注册（补 `-allowProvisioningDeviceRegistration`） |
-| `a76f6cc` | 真机闭环验收脚本 `verify-device.mjs`（无真机则拒绝运行） |
-| `3f8eba9` | 记录真机闭环验收结果 |
-| `fd9447b` | 修复右侧栏 tab：guide 缺 `order`、唤出监听位置错误、帧被重复轮询清空 |
-| `3f5632f` | 浏览器端 tab 验收脚本 `verify-panel.mjs` |
 
 ### 产物位置
 

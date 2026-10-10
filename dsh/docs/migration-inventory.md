@@ -1,6 +1,11 @@
-# iPhone Use: Codex 到 DSH 迁移对照清单
+# iPhone Use: Codex 到 DSH 迁移对照清单（历史记录）
 
-本文件是迁移的基线盘点与验收对照表。左列是迁移前由 Codex 驱动的能力，右列是迁移后由 DSH 宿主驱动的对应实现与验证方式。
+本文件是迁移的基线盘点与验收对照表：左列是迁移前由 Codex 驱动的能力，右列是迁移后由
+DSH 宿主驱动的对应实现与验证方式。
+
+**Codex 宿主支持已于 2026-10-10 退休**，本表仅作历史对照：左列描述的 Codex 插件清单、
+安装命令与 MCP Apps widget 均已从仓库删除，当前唯一宿主是 DSH。理由与后果见
+[`.agents/notes/implemented/architecture/2026-10-10-dsh-only-host-and-widget-retirement.md`](../../.agents/notes/implemented/architecture/2026-10-10-dsh-only-host-and-widget-retirement.md)。
 
 - 迁移前宿主：Codex 桌面端 / CLI（`codex plugin marketplace add` + `codex plugin add` + `codex mcp add`）
 - 迁移后宿主：DeepSeek Harness（`@deepseek-ai/dsh`），插件通过 `dsh.profile.bundles` + bundle `cordis.patch.yml` 挂载
@@ -54,11 +59,11 @@
 
 | 位置 | Codex 专属内容 | 处置 |
 | --- | --- | --- |
-| `plugin.json` / `.codex-plugin/` | `extensions.com.openai.interface`、agent-plugins.org schema | 保留（Codex 用法继续可用）；DSH 用独立元数据 |
-| `mcp.json` / `.mcp.json` | `${PLUGIN_ROOT}` 占位由 Codex 展开 | DSH 侧不使用；宿主插件用 `import.meta.url` 解析自身路径 |
-| `scripts/install.sh` | `codex plugin marketplace add` / `codex mcp add` | 保留给 Codex；DSH 侧用 `dsh/scripts/install.mjs` |
-| `scripts/register_mcp.py` | 写 `~/.codex/config.toml` | DSH 侧不使用 |
-| `server/iphone_use.py` 的 `openai/ui`、`ui://` | MCP Apps 面板协议 | DSH 侧不使用；面板改走 `ctx.sidebarRightTabs` |
+| `plugin.json` / `.codex-plugin/` | `extensions.com.openai.interface`、agent-plugins.org schema | 已删除（2026-10-10 退休 Codex 宿主） |
+| `mcp.json` | `${PLUGIN_ROOT}` 占位由 Codex 展开 | 已删除；宿主插件用 `import.meta.url` 解析自身路径 |
+| `scripts/install.sh` | `codex plugin marketplace add` / `codex mcp add` | 已删除；安装改用 `dsh/scripts/install.mjs` |
+| `scripts/register_mcp.py` | 写 `~/.codex/config.toml` | 已删除 |
+| `server/iphone_use.py` 的 `openai/ui`、`ui://` | MCP Apps 面板协议 | 已删除（含 `resources/*` 与 widget 栈）；面板走 `ctx.sidebarRightTabs` |
 | `server/iphone_use.py` 的 `functions.exec` / `view_image` / `request_user_input_async` 文案 | Codex 工具名 | DSH 侧由职业技能文案与插件描述引导到 `run_code` / `read_image` |
 | `server/analytics.py` | PostHog 匿名统计 | 保持，`IPHONE_USE_ANALYTICS=0` 可关闭；DSH 侧不新增埋点 |
 

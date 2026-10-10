@@ -5,7 +5,6 @@ __pycache__/
 node_modules/
 dist/
 .runtime/
-outputs/
 DerivedData/
 WebDriverAgent/
 *.xcresult
@@ -14,7 +13,6 @@ WebDriverAgent/
 *.pem
 .env
 .env.*
-config.local.json
 posthog.local.json
 *.jsonl
 

@@ -37,18 +37,8 @@ node dsh/scripts/install.mjs --profile <你的 profile 名>
 3. 用官方机制 `dsh plugin --profile <profile> add <tarball>` 安装。
 
 **注意** `desktop` profile 由 Electron 应用独占，命令行无法写入（`dsh plugin
---profile desktop ...` 会被拒绝）。若你使用 DSH 桌面应用，这是预期行为，不是
-安装失败——桌面应用自己管理该 profile 的 bundle 列表与依赖：
-
-- 在本机 `~/.dsh/profiles/desktop/package.json` 可以看到它的 `dsh.profile.bundles`
-  与 `dependencies`（例如已有的 `dsh-web`、`dsh-free-search` 等第三方插件），
-  说明桌面端确实从该 profile 加载插件；把同一条 tarball 通过应用自己的插件
-  入口加入即可。
-- 若你用命令行启动 profile，任选一个 CLI 管理的 profile 名（`install.mjs`
-  默认走这条路径，并在隔离的 `DSH_HOME` 中验证）。
-
-本仓库的自动化验证一律使用 CLI 管理的隔离 profile，**不会**读写你真实的
-`~/.dsh/profiles/desktop`。
+--profile desktop ...` 会被拒绝）；这是预期行为，安装方式见下方小节
+「桌面应用（desktop profile）」。
 
 安装完成后重启该 profile（或按 profile 的 HMR 配置重载）。
 
@@ -65,9 +55,15 @@ node dsh/scripts/install.mjs --profile <profile> --from "$(pwd)/dsh/dist/dsh-iph
 命令行不能写 `desktop` profile，这是 DSH 的设计。两种可行方式：
 
 1. 用桌面应用自身的插件入口安装同一条 tarball（推荐，profile 仍由应用管理）。
+   本机 `~/.dsh/profiles/desktop/package.json` 里的 `dsh.profile.bundles` 与
+   `dependencies`（例如已有的 `dsh-web`、`dsh-free-search` 等第三方插件）
+   就是桌面端加载的 bundle 列表，说明它确实从该 profile 加载插件。
 2. 若你要在命令行下使用，创建一个自己的 profile：
    `node dsh/scripts/install.mjs --profile mydsh`，然后用
    `dsh --profile mydsh web` 启动。
+
+本仓库的自动化验证一律使用 CLI 管理的隔离 profile，**不会**读写你真实的
+`~/.dsh/profiles/desktop`。
 
 ### 隔离验证（不污染现有 DSH 配置）
 
@@ -180,13 +176,14 @@ node dsh/scripts/uninstall.mjs --profile <profile>
 
 ## 8. 从 Codex 迁移
 
-本仓库同时保留 Codex 插件（`plugin.json`、`.codex-plugin/`、`mcp.json`）供原有
-用法继续工作。迁移到 DSH 时：
+Codex 宿主支持已经退休：本仓库不再包含 `plugin.json`、`.codex-plugin/` 与
+`mcp.json`，`codex plugin add` 的安装路径与 MCP Apps 侧栏 widget 一并移除。
 
-- 新增的是 `dsh/` 下的 DSH 插件包，设备桥接层（`server/`）与技能（`skills/`）是
-  同一份代码，不需要复制或改写。
-- 安装方式从 `codex plugin add` 换成 `dsh plugin --profile <p> add`。
+从旧用法迁移到 DSH：
+
+- 设备桥接层（`server/`）与技能（`skills/`）仍是同一份代码，不需要复制或改写。
+- 安装方式换成 `dsh plugin --profile <p> add`（见第 2 节）。
 - 工具名、参数与返回值语义保持不变，原有的提示词与技能说明可以继续使用。
-- 面板从 Codex 的侧栏 widget 换成 DSH 右侧栏的「手机屏幕」页。
+- 实时画面改用 DSH 右侧栏的「手机屏幕」页；widget 栈（`ui/`）已删除。
 
-对照清单见 [`migration-inventory.md`](migration-inventory.md)。
+历史对照见 [`migration-inventory.md`](migration-inventory.md)。
