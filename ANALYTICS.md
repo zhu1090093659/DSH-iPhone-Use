@@ -32,9 +32,15 @@ IPHONE_USE_ANALYTICS=0
 DO_NOT_TRACK=1
 ```
 
-For Codex, add `IPHONE_USE_ANALYTICS = "0"` under
-`[mcp_servers.iphone_use.env]` in `~/.codex/config.toml`. For a portable MCP JSON
-configuration, add `"env": {"IPHONE_USE_ANALYTICS": "0"}` to the server entry.
+For DSH, set the variable in the plugin row's `env` block in the profile's
+`cordis.patch.yml` (the install doc shows the same block):
+
+```yaml
+- id: iphone-use
+  config:
+    env:
+      IPHONE_USE_ANALYTICS: '0'
+```
 
 `IPHONE_USE_POSTHOG_PROJECT_TOKEN` overrides the bundled token. An explicitly
 empty value disables sending. For local development, `server/posthog.local.json`

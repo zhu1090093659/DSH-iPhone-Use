@@ -2,7 +2,7 @@
 
 优先调用封装好的工具，默认乐观执行常规动作，下一步需要信息时顺带判断上一动作。工具绑定缺失、宿主转发错误或已确认的封装问题不等于 PUA 不可用；可对同一已授权动作使用插件代码入口。代码回退保留相同的配置、会话、操作锁和明确异常处理，不新增每步验收。
 
-普通版提供 17 个模型工具；先查看本回合实际可调用的工具绑定（支持时用 ALL_TOOLS 或工具搜索），不能只从 tools/list、文档或先前聊天推断已经绑定。0.1.6 的 install.sh 同时注册同名标准 MCP，避免 Codex 插件共享说明预算隐藏工具，并保留完整 batch schema。新版安装后重新连接聊天；实际仍缺少所需工具时才用下面的代码入口继续，不默认把已封装操作都改成 CLI。
+普通版提供 17 个模型工具；先查看本回合实际可调用的工具绑定（支持时用 ALL_TOOLS 或工具搜索），不能只从 tools/list、文档或先前聊天推断已经绑定。DSH 插件宿主在注册时跳过 `appOnly` 的 `pua_screen_frame` / `pua_screen_action`，所以模型工具表里只有这 17 个；装好插件并重启 profile 后新开聊天，实际仍缺少所需工具时才用下面的代码入口继续，不默认把已封装操作都改成 CLI。
 
 ## 先区分错误
 
@@ -17,7 +17,7 @@
 - 查询短暂失败：工具可有界重读一次；POST 查询接口不应按 mutation 处理，查询失效不证明手机动作已执行。
 - `local.pid.0`、`pua_foreground_unavailable` 或 XCTest Code 41：通道故障，调用 READY 恢复；不要通过更改 selector 或重复手机按钮处理。锁屏、签名和信任问题按 setup skill；App 密码 / Face ID 按认证接管。
 
-看到截图的方式按宿主选择：DSH 用自带 `read_image` 读结果里的 `image_saved_to`（或 `image.path` / `error.observation.image.path`）；Codex 通过 `functions.exec` 时逐个内容块转发，文字用 `text(block.text)`，图片用 `image(block)`，不要 `text(result)` 把截图变成 base64 文本，无法转发时用 `view_image` 打开同一路径。坐标按 `pixel_to_point` 换算。
+看到截图的方式：DSH 用自带 `read_image` 读结果里的 `image_saved_to`（或 `image.path` / `error.observation.image.path`），不能把图片元数据或 base64 当成看过截图。坐标按 `pixel_to_point` 换算。
 
 普通 `verified=false` 不是错误，不要求 observe 或停止 batch。HTTP accepted 只描述请求边界；常规路径继续，最终关键状态显式验收。
 

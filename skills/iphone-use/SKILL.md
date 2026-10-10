@@ -5,7 +5,7 @@ description: 通过 PUA（Phone Use Agent）MCP 工具高效操作真实 iPhone�
 
 # 用 PUA 完成 iPhone 任务
 
-新对话没有本对话的有效 READY 证明时，先执行下面的初始化流程，再开始手机任务；此前聊天成功、安装了插件、打开 widget 或看到 Runner 图标都不替代本对话 READY。PUA 服务尚未启动是需要继续处理的启动步骤，不能据此提前结束用户任务。已有配置默认复用，只启动缺失服务，不整套重装。
+新对话没有本对话的有效 READY 证明时，先执行下面的初始化流程，再开始手机任务；此前聊天成功、安装了插件、打开右侧栏面板或看到 Runner 图标都不替代本对话 READY。PUA 服务尚未启动是需要继续处理的启动步骤，不能据此提前结束用户任务。已有配置默认复用，只启动缺失服务，不整套重装。
 
 先确定用户要交付的结果和完成条件。默认把一次正常返回的动作当作已按计划执行，继续准备下一步；不要为每次点击、切页、Home、启动或输入专门调用观察来证明成功。下一步需要页面信息时，读取一次并顺带判断上一步是否生效；明确未生效再调整或重做。最终关键操作、发送或提交结果、关键文本以及交付文件需要有实际结果证据。
 
@@ -21,9 +21,9 @@ description: 通过 PUA（Phone Use Agent）MCP 工具高效操作真实 iPhone�
 
 只读、禁止启动 / 重启等用户限制始终保留。恢复后复用 READY 的新观察了解原任务进度，不能重放可能已经生效的业务动作。
 
-READY 关联手机屏幕侧边栏，宿主支持时默认打开或复用本聊天已有面板；重复 setup / 恢复通道、暂停 / 恢复预览沿用同一个 widget。已有面板时直接继续，不为刷新再调用屏幕打开工具；需要重新打开已关闭的面板时调用一次 `pua_screen()`，不要为打开画面重复 READY。用户要求“先打开 widget 让我看”时先打开，再继续初始化与已授权任务；只有明确要求等他确认再操作时才等待。widget 顶部显示机型和 Live 状态，底部的刷新 / 主屏幕 / 截图三个按钮只供用户自己点击，不是模型的工具：不要调用仅供 App 使用的 `pua_screen_frame` 和 `pua_screen_action`，不要为刷新预览增加轮询、截图或 observe。用户点过主屏幕后页面会变，按下一次观察到的实际状态继续。画面留空、光效或 cursor 都不证明 READY、动作成功或任务完成，也不是模型观察。预览问题按 [屏幕通道说明](references/screen.md) 排查，不为它反复恢复控制通道。
+READY 关联手机屏幕右侧栏面板，宿主支持时默认打开或复用本聊天已有面板；重复 setup / 恢复通道、暂停 / 恢复预览沿用同一个面板。已有面板时直接继续，不为刷新再调用屏幕打开工具；需要重新打开已关闭的面板时调用一次 `pua_screen()`，不要为打开画面重复 READY。用户要求“先打开手机屏幕让我看”时先打开，再继续初始化与已授权任务；只有明确要求等他确认再操作时才等待。面板顶部显示机型和 Live 状态，底部的刷新 / 主屏幕 / 截图三个按钮只供用户自己点击，不是模型的工具：模型可用 17 个工具，`pua_screen_frame` 和 `pua_screen_action` 仅供面板使用，不进入模型的工具表。不要为刷新预览增加轮询、截图或 observe。用户点过主屏幕后页面会变，按下一次观察到的实际状态继续。画面留空不证明 READY、动作成功或任务完成，也不是模型观察。预览问题按 [屏幕通道说明](references/screen.md) 排查，不为它反复恢复控制通道。
 
-App 实际要求密码、PIN、验证码、Face ID / Touch ID，或手机需要用户解锁时，按 [认证接管与恢复](references/authentication.md) 等用户完成。App 认证先 `pua_screen(action="pause")`；`phone_locked` 已自动暂停为 `device_locked`，不要再用显式 pause 覆盖原因。必须调用宿主自带的提问工具（DSH 装载问答工具时为 `ask_user_question`，Codex Default 模式为 `functions.request_user_input_async`；精简/无头 profile 可能不挂载，此时按本回合实际可用工具选择，都没有才用文字等待），首个选项固定「已完成继续」，第二个可为「暂时无法完成」。异步返回 / 预选不是用户答复；接管期间暂停手机动作、读取和截图，不索取凭据。实际完成通知后，App 认证或旧版未知暂停先 `pua_screen(action="resume")` 再取新观察；设备解锁则重验 READY，成功时仅自动解除同一次锁屏暂停。READY 的 `preview.paused` / `pause_reason` 说明预览状态；不能把 READY 成功当成 App 认证已完成。根据新状态继续剩余工作。
+App 实际要求密码、PIN、验证码、Face ID / Touch ID，或手机需要用户解锁时，按 [认证接管与恢复](references/authentication.md) 等用户完成。App 认证先 `pua_screen(action="pause")`；`phone_locked` 已自动暂停为 `device_locked`，不要再用显式 pause 覆盖原因。必须调用宿主自带的提问工具（DSH 装载问答工具时为 `ask_user_question`；精简/无头 profile 可能不挂载，此时按本回合实际可用工具选择，都没有才用文字等待），首个选项固定「已完成继续」，第二个可为「暂时无法完成」。异步返回 / 预选不是用户答复；接管期间暂停手机动作、读取和截图，不索取凭据。实际完成通知后，App 认证或旧版未知暂停先 `pua_screen(action="resume")` 再取新观察；设备解锁则重验 READY，成功时仅自动解除同一次锁屏暂停。READY 的 `preview.paused` / `pause_reason` 说明预览状态；不能把 READY 成功当成 App 认证已完成。根据新状态继续剩余工作。
 
 ## 按下一步需要选择观察
 
@@ -43,21 +43,9 @@ App 实际要求密码、PIN、验证码、Face ID / Touch ID，或手机需要�
 - 输入：先点截图中实际可见的输入框，再调用不带 selector 的 `pua_type_text(text=...)`。`no_focused_field` 表示没有输入；上一个点击可能被浮层拦截或落在错误位置，不能原样重复那组坐标和输入。按当前截图重新选点，下一步需要信息时让动作返回截图，以便判断页面与焦点。
 - 目标在屏幕外：先向目标滑动，再按随后截图点击。等待标签或滚动查找失败也按真实画面继续，不循环相同标签。
 
-截图像素点 `(px, py)` 换算为 `x=px*image.pixel_to_point[0]`、`y=py*image.pixel_to_point[1]` 后传给 `pua_tap`。x/y 接受 iPhone 点，不能直接传截图像素或 Mac widget 坐标。
+截图像素点 `(px, py)` 换算为 `x=px*image.pixel_to_point[0]`、`y=py*image.pixel_to_point[1]` 后传给 `pua_tap`。x/y 接受 iPhone 点，不能直接传截图像素或 Mac 屏幕坐标。
 
-必须真正看到截图本身，不能把图片元数据或 base64 当成看过截图。按当前宿主选一种方式：
-
-- DSH：结果里的 `image_saved_to`（或 `image.path` / `error.observation.image.path`）是主机上已落盘的 PNG 路径，用 DSH 自带的 `read_image` 读取。
-- Codex：通过 `functions.exec` 调工具时逐个内容块转发，图片用 `image(block)`、文字用 `text(block.text)`，不能 `text(result)` 输出整份含 base64 的结果；图片无法转发时用 `view_image` 打开 `image.path`。
-
-```javascript
-// Codex 路径：把图片块真正转发给模型
-const result = await tools.mcp__iphone_use__pua_observe({mode: "screenshot"});
-for (const block of result.content ?? []) {
-  if (block.type === "text") text(block.text);
-  else if (block.type === "image") image(block);
-}
-```
+必须真正看到截图本身，不能把图片元数据或 base64 当成看过截图。DSH 下结果里的 `image_saved_to`（或 `image.path` / `error.observation.image.path`）是主机上已落盘的 PNG 路径，用 DSH 自带的 `read_image` 读取。
 
 点击、输入等失败结果同样要看到图片。
 

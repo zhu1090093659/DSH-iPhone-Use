@@ -2,50 +2,35 @@
 
 **中文** · [English](README.en.md)
 
-![iPhone Use 在 Codex 中操作真实 iPhone 并实时展示手机屏幕](assets/iphone-use-demo.png)
+![iPhone Use 操作真实 iPhone 并实时展示手机屏幕（早期宿主截图）](assets/iphone-use-demo.png)
 
-让 Codex 通过 USB 操作你的真实 iPhone。用自然语言描述任务，Codex 就能打开 App、读取页面、点击、滚动、输入文字、整理列表，并在侧边栏展示手机屏幕。
+让 DeepSeek Harness（DSH）通过 USB 操作你的真实 iPhone。用自然语言描述任务，DSH 就能打开 App、读取页面、点击、滚动、输入文字、整理列表，并在右侧栏展示手机屏幕。
 
-iPhone Use 使用 [WebDriverAgent](https://github.com/appium/WebDriverAgent)（WDA）与 iPhone 通信，包含本地 MCP 服务、安装与使用技能，以及实时屏幕 widget。它优先复用现有连接与构建；控件定位失败时，指导模型查看截图并尝试坐标点击。
+iPhone Use 使用 [WebDriverAgent](https://github.com/appium/WebDriverAgent)（WDA）与 iPhone 通信，包含本地 MCP 服务、安装与使用技能，以及右侧栏的实时手机屏幕面板。它优先复用现有连接与构建；控件定位失败时，指导模型查看截图并尝试坐标点击。
 
 插件默认向独立的 PostHog 项目发送匿名使用统计，包括启动、工具调用、连接状态、耗时和错误类别。使用随机安装标识，不上传手机画面、输入内容或设备标识。设置 `IPHONE_USE_ANALYTICS=0` 或 `DO_NOT_TRACK=1` 并重启 MCP 服务可关闭。详见 [埋点与分析说明](ANALYTICS.md)。
 
-**使用前，需要先在你自己的 iPhone 上安装、签名并启动 WDA Runner。** WDA 是运行在手机上的执行服务；下面的提示词和 setup 流程可以让 Codex 协助完成首次安装，已有健康的 WDA 可直接复用。
+**使用前，需要先在你自己的 iPhone 上安装、签名并启动 WDA Runner。** WDA 是运行在手机上的执行服务；下面的提示词和 setup 流程可以让 DSH 协助完成首次安装，已有健康的 WDA 可直接复用。
 
-## 也可以由 DeepSeek Harness 驱动
+## 安装
 
-同一个设备桥接层（`server/`）与技能（`skills/`）现在也能由 **DSH** 驱动：无需安装、登录或启动 Codex，工具、会话、生命周期和右侧栏实时画面都由 DSH 宿主负责。安装一行命令：
+在本仓库根目录执行：
 
 ```sh
 node dsh/scripts/install.mjs --profile <你的 profile 名>
 ```
 
-```text
-用 iphone-use-setup 技能帮我配置 USB 连接的 iPhone，安装并启动 WDA，
-验证 READY，然后打开手机屏幕。
-```
-
-本仓库内相关文档：
-
-- 完整安装与配置：`dsh/docs/install.md`
-- 能力前后对照：`dsh/docs/migration-inventory.md`
-- 验收记录：`dsh/docs/acceptance.md`
-
-Codex 用法保持不变；两者共用同一份设备能力代码。
-
-## 用一段提示词让 Codex 安装
-
-将下面这段话复制到本机 Codex：
+安装完成后重启该 profile。也可以把下面这段话交给 DSH 会话，让模型完成安装与设备配置：
 
 ```text
 请帮我安装和配置 iPhone Use：
 https://github.com/zhongerxin/iPhone-use
 
-先读取仓库 README 和安装脚本，检查本机 Codex CLI、Python、Node.js、npm、
+先读取仓库 README 和安装文档，检查本机 DSH、Python、Node.js、npm、
 完整 Xcode，以及通过 USB 连接的 iPhone。把项目放到合适的本机目录，
-运行 sh scripts/install.sh 安装插件。
+运行 node dsh/scripts/install.mjs --profile <我的 profile 名> 安装插件。
 
-如果当前聊天还没有加载新工具，明确告诉我重连或新开聊天后继续。
+如果当前会话还没有加载新工具，明确告诉我重启 profile 并新开会话后继续。
 工具可用后读取 iphone-use-setup 技能，检查现有配置，优先复用已有 WDA。
 首次配置时发现我的设备，使用我自己的 Apple 开发团队和可签名 bundle ID，
 获取固定版本 WDA、配置签名、构建并启动，直到 pua_ready 返回 ready=true，
@@ -55,7 +40,13 @@ https://github.com/zhongerxin/iPhone-use
 或解锁需要我操作时，告诉我明确步骤，等我完成再继续。
 ```
 
-安装插件后，当前聊天可能需要重新连接才能加载工具，流程可在重连后继续。Apple 账号登录、设备信任、开发者模式及手机解锁仍需本人在系统界面完成。
+本仓库内相关文档：
+
+- 完整安装与配置：`dsh/docs/install.md`
+- 能力前后对照：`dsh/docs/migration-inventory.md`
+- 验收记录：`dsh/docs/acceptance.md`
+
+安装完成后重启 profile，新会话才会加载插件工具。Apple 账号登录、设备信任、开发者模式及手机解锁仍需本人在系统界面完成。
 
 仓库目前为私有，需要有 GitHub 访问权限，或者使用已取得的源代码包。
 
@@ -63,7 +54,7 @@ https://github.com/zhongerxin/iPhone-use
 
 | 依赖 | 用途 |
 | --- | --- |
-| macOS 与 Codex 桌面端 / CLI | 安装本地插件、运行 MCP 服务与屏幕侧边栏 |
+| macOS 与 DSH | 安装本地插件、运行 MCP 服务与右侧栏手机屏幕面板 |
 | 完整 Xcode，已完成首次启动配置 | 编译、签名、部署和运行 WDA；仅 Command Line Tools 不够 |
 | 可在 Xcode 中使用的 Apple 账号和开发团队 | 签名手机端 WDA Runner |
 | USB 连接的真实 iPhone | 信任此 Mac，开启设备要求的开发者模式，安装与启动期间保持解锁 |
@@ -76,7 +67,7 @@ Xcode 需要支持手机当前的 iOS 版本。无需越狱，也无需单独启
 
 手机端使用 [Appium 维护的 WebDriverAgent](https://github.com/appium/WebDriverAgent)。首次使用时，须通过 Xcode 用你自己的 Apple 账号与开发团队签名、安装并启动 `WebDriverAgentRunner`。
 
-推荐使用上面的安装提示词和下面的 `iphone-use-setup` 流程：Codex 获取本项目固定版本的 WDA，配置你的设备和签名，再完成构建、部署与启动；需要你完成 Apple 登录、设备信任、开发者模式或解锁时，会提示具体步骤。
+推荐使用上面的安装流程和下面的 `iphone-use-setup`：DSH 获取本项目固定版本的 WDA，配置你的设备和签名，再完成构建、部署与启动；需要你完成 Apple 登录、设备信任、开发者模式或解锁时，会提示具体步骤。
 
 如需在 Xcode 手动处理：
 
@@ -91,20 +82,20 @@ Xcode 需要支持手机当前的 iOS 版本。无需越狱，也无需单独启
 ```sh
 git clone https://github.com/zhongerxin/iPhone-use.git
 cd iPhone-use
-sh scripts/install.sh
+node dsh/scripts/install.mjs --profile <你的 profile 名>
 ```
 
-脚本验证并暂存源码，通过 Codex CLI 注册本地 marketplace、安装插件和技能，并将安装缓存中的服务注册为标准 MCP `iphone_use`。插件与标准配置使用同一命名空间，避免重复工具注册。
+脚本先校验工具表与设备桥接一致，再打包 `dsh/dist/dsh-iphone-use-<版本>.tgz`，用官方插件管理器 `dsh plugin --profile <profile> add` 安装；工具、技能与右侧栏面板路由都由 DSH 插件宿主统一注册，卸载时一并释放。
 
-源代码包解压后，也可以在包目录运行同一个安装脚本。安装完成后重连或新开 Codex 聊天。
+源代码包解压后，也可以在包目录运行同一个安装命令。安装完成后重启该 profile，并在新会话中使用。
 
 ### 连接自己的 iPhone
 
-在新聊天中启用 **iPhone Use**，输入：
+安装插件并重启 profile 后，在新会话中输入：
 
 > 用 iphone-use-setup 帮我配置通过 USB 连接的 iPhone，安装并启动 WDA，验证 READY，然后显示手机屏幕。
 
-技能引导 Codex 完成诊断、设备发现、签名配置、获取 WDA、后台构建与启动。已配置过的设备会复用配置和构建，正常任务不需要每次重装。`pua_ready` 返回 `ready=true` 后才开始手机任务。
+技能引导 DSH 完成诊断、设备发现、签名配置、获取 WDA、后台构建与启动。已配置过的设备会复用配置和构建，正常任务不需要每次重装。`pua_ready` 返回 `ready=true` 后才开始手机任务。
 
 ## 可以做什么
 
@@ -117,7 +108,7 @@ sh scripts/install.sh
 | 连续任务 | 将已知点击、输入、等待等步骤组成一次 batch，减少模型往返 |
 | 列表搜索与采集 | 有界滚动查找、重叠读取与去重，返回覆盖边界 |
 | 可见失败恢复 | 控件被遮挡、未聚焦或树不完整时，查看新截图并重新选择点击位置 |
-| 实时手机屏幕 | iPhone 外壳、设备状态、操作光效与清楚可见的点击 / 拖动提示 |
+| 实时手机屏幕 | 右侧栏面板显示实时画面、设备名与连接状态，并有刷新 / 主屏幕 / 截图按钮 |
 | 连接恢复 | 复用后台启动工作、重建失效会话；用户可点击刷新重新连接预览 |
 
 示例提示词：
@@ -132,7 +123,7 @@ sh scripts/install.sh
 
 输入与提交分开，工具默认不提交文字。模型需要核对关键页面、接收人、数量和最终结果。密码、验证码、Face ID 等认证交给用户完成，接管期间可以暂停预览。
 
-屏幕预览在同一聊天中复用已有 widget。底部提供刷新、主屏幕和截图按钮；无图像时保留黑色屏幕的 iPhone 外壳，屏幕内仅显示对应状态图标，顶部显示连接或暂停状态。预览供用户观看，模型定位仍以工具返回的实际图像或控件为依据。
+手机屏幕在同一聊天中复用已有面板。面板顶部显示机型与实时 / 未连接 / 已暂停状态，底部提供刷新、主屏幕和截图按钮；没有画面时显示等待画面或当前暂停状态。预览供用户观看，模型定位仍以工具返回的实际图像或控件为依据。
 
 ## 技术亮点
 
@@ -148,7 +139,7 @@ sh scripts/install.sh
 
 ## 工具概览
 
-模型可用 17 个工具，另有 2 个仅供屏幕 widget 使用的工具。
+模型可用 17 个工具，另有 2 个仅供右侧栏面板使用的工具。
 
 | 工具 | 用途 |
 | --- | --- |
@@ -172,21 +163,20 @@ sh scripts/install.sh
 
 ```sh
 git pull --ff-only
-sh scripts/install.sh
+node dsh/scripts/install.mjs --profile <你的 profile 名>
 ```
 
-重新连接聊天以加载更新后的工具、技能和屏幕资源。若手机连接失败，先检查 USB、设备解锁、开发者模式、Xcode 签名与 setup 返回的具体错误；已有启动工作应继续查询，避免反复重启。
+重启该 profile 并重新连接会话，以加载更新后的工具、技能和面板资源。若手机连接失败，先检查 USB、设备解锁、开发者模式、Xcode 签名与 setup 返回的具体错误；已有启动工作应继续查询，避免反复重启。
 
 ## 开发与文档
 
 ```sh
-npm ci --prefix ui --no-audit --no-fund
-npm run build --prefix ui
+node dsh/scripts/build.mjs
 sh scripts/check.sh
 python3 scripts/package.py
 ```
 
-构建结果是自包含屏幕 HTML，源代码包位于 `dist/iphone-use-<版本>-source.zip`。安装和普通使用不需要重新构建 UI。安装后的插件仍完整保留 widget 的源码、样式、构建脚本、配置、依赖锁文件和测试，便于本地维护。
+DSH 插件包输出为 `dsh/dist/dsh-iphone-use-<版本>.tgz`，源代码包位于 `dist/iphone-use-<版本>-source.zip`。安装和普通使用不需要重新构建。
 
 - [屏幕预览与恢复](skills/iphone-use/references/screen.md)
 - [App 标识参考](skills/iphone-use/references/apps.md)
@@ -195,7 +185,7 @@ python3 scripts/package.py
 
 ## 依赖与致谢
 
-本项目依赖 [Appium](https://github.com/appium/appium) 生态与 [WebDriverAgent](https://github.com/appium/WebDriverAgent)：WDA 提供手机端的自动化执行服务，[appium-ios-device](https://github.com/appium/appium-ios-device) 提供 USB 设备通信、端口转发与屏幕流连接能力。iPhone Use 在这些基础上提供 Codex 插件、MCP 工具、安装引导与屏幕 widget，无需单独运行 Appium Server。
+本项目依赖 [Appium](https://github.com/appium/appium) 生态与 [WebDriverAgent](https://github.com/appium/WebDriverAgent)：WDA 提供手机端的自动化执行服务，[appium-ios-device](https://github.com/appium/appium-ios-device) 提供 USB 设备通信、端口转发与屏幕流连接能力。iPhone Use 在这些基础上提供 DSH 插件、MCP 工具、安装引导与右侧栏手机屏幕面板，无需单独运行 Appium Server。
 
 感谢 Appium、WebDriverAgent 及相关项目的维护者和贡献者，让真实 iPhone 的自动化操作成为可能。
 
