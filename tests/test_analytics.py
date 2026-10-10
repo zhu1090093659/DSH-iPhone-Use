@@ -1,6 +1,7 @@
 import concurrent.futures
 import json
 import os
+import re
 from pathlib import Path
 import sys
 import tempfile
@@ -9,8 +10,9 @@ import time
 import unittest
 from unittest.mock import Mock, patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "server"))
-from analytics import Analytics, anonymous_id, project_token, safe_properties, send_batch
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "server"))
+from analytics import Analytics, ERRORS, anonymous_id, project_token, safe_properties, send_batch
 from iphone_use import Runtime, VERSION
 from wda_client import WDAError
 
@@ -159,6 +161,33 @@ class AnalyticsTests(unittest.TestCase):
         self.assertEqual(body["api_key"], "public-token")
         self.assertEqual(body["batch"], [{"event": "example"}])
         connection.close.assert_called_once()
+
+
+class ProducedErrorCodeTests(unittest.TestCase):
+    """Every code the server can produce must be an allowlisted analytics error_code.
+
+    A new fail()/WDAError() code that is missing from analytics.ERRORS is reported as the
+    private catch-all "other", so this guard fails on drift instead of losing the code.
+    """
+
+    def produced_error_codes(self):
+        paths = sorted((ROOT / "server").glob("*.py"))
+        self.assertTrue(paths)
+        codes = set()
+        for path in paths:
+            # Comments and docstrings are not code, so the source needs no AST import.
+            source = re.sub(r'"""(?:.|\n)*?"""', "", path.read_text(encoding="utf-8"))
+            source = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", source)
+            source = re.sub(r"\n *#[^\n]*", "", source)
+            for pattern in (r'\b(?:fail|WDAError)\s*\(\s*"([^"]*)"', r'"error"\s*:\s*\{\s*"code"\s*:\s*"([^"]*)"'):
+                codes.update(re.findall(pattern, source))
+        return codes
+
+    def test_every_server_error_code_is_allowlisted(self):
+        codes = self.produced_error_codes()
+        # The scanner itself must still see the codes it guards.
+        self.assertLessEqual({"invalid_argument", "invalid_selector", "internal_error"}, codes)
+        self.assertEqual(codes - ERRORS, set())
 
 
 if __name__ == "__main__":

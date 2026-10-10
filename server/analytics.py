@@ -23,13 +23,14 @@ TOOLS = frozenset("pua_" + op for op in (
     "doctor", "setup", "ready", "metrics", "observe", "find", "tap", "swipe", "type_text",
     "press_button", "launch_app", "wait", "scroll_find", "collect_list", "apps", "batch", "screen", "screen_action"))
 ERRORS = frozenset((
-    "ambiguous_target", "clipboard_unavailable", "device_busy", "http_error",
+    "action_uncertain", "ambiguous_target", "clipboard_unavailable", "device_busy", "http_error",
     "input_continuation_expired", "input_mismatch", "invalid_argument", "invalid_response",
     "invalid_selector", "mirroring_conflict", "newline_requires_intent", "newline_unsafe",
     "no_focused_field", "no_scroll_progress", "no_such_element", "not_editable", "not_ready",
     "occluded_target", "offscreen_target", "phone_locked", "postcondition_failed", "preview_paused",
     "pua_foreground_unavailable", "pua_recovery_required", "pua_unreachable", "response_too_large",
-    "scroll_context_changed", "search_exhausted", "stale_observation", "unknown_tool", "internal_error"))
+    "scroll_context_changed", "search_exhausted", "stale_observation", "unknown_tool", "internal_error",
+    "app_lookup_unavailable", "modal_requires_region", "blocked_scroll_region"))
 ENUMS = {
     "tool_name": TOOLS,
     "outcome": {"success", "error", "pending"},
@@ -137,7 +138,7 @@ class Analytics:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "properties": {
                         "app_name": "iphone-use", "app_version": self.version,
-                        "app_surface": "local_mcp", "source": "codex_plugin_mcp",
+                        "app_surface": "local_mcp", "source": "dsh_plugin_mcp",
                         "$lib": "iphone-use-mcp", "$process_person_profile": False,
                         "$geoip_disable": True, "session_id": self.session_id,
                         "platform": platform.system(), "environment": environment(), **safe_properties(properties),
