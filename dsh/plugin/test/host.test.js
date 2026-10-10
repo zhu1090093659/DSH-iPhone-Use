@@ -65,7 +65,12 @@ test('config resolves the shipped bridge and honours every override', () => {
 
 test('the generated tool table loads and matches the bridge', async () => {
   const table = await loadToolTable()
-  assert.equal(table.version, '0.3.6')
+  // Derived from the bridge, not pinned: a literal here would have to be edited
+  // on every bridge release and would hide a stale generated table as "passing".
+  const declared = /^VERSION="([^"]+)"/m.exec(
+    readFileSync(join(HERE, '..', '..', '..', 'server', 'iphone_use.py'), 'utf8'),
+  )?.[1]
+  assert.equal(table.version, declared)
   assert.equal(table.tools.length, 19)
   assert.equal(table.tools.filter((tool) => tool.appOnly).length, 2)
 })

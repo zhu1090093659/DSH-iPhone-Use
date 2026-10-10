@@ -1,5 +1,5 @@
 {
-  "version": "0.3.6",
+  "version": "0.3.8",
   "tools": [
     {
       "name": "pua_observe",
@@ -890,7 +890,7 @@
     {
       "name": "pua_ready",
       "title": "Pua ready",
-      "description": "First phone task in a new chat: initialize with READY (recover=true or omitted); only ready=true permits phone tasks. Reuse this chat's healthy channel afterward. pua_unreachable/not_ready is a setup branch, not final task failure: setup(status), reuse an active job or start once, then READY again. recover=true handles owned runtime faults; it does not cold-start a stopped service. For state=recovering/recovery_required follow guidance. Never replay phone actions.",
+      "description": "First phone use in this chat: setup(status), reuse/start and wait, then READY (recover=true); only ready=true permits phone tasks. Reuse the healthy channel afterward. pua_unreachable/not_ready requires setup, not task failure. recover=true handles owned runtime faults, not cold startup. For recovering/recovery_required follow guidance. Never replay phone actions.",
       "readOnly": false,
       "appOnly": false,
       "parameters": {
@@ -933,7 +933,7 @@
     {
       "name": "pua_setup",
       "title": "Pua setup",
-      "description": "Initialize/start PUA when READY is unreachable or not_ready: status first, reuse an active start/recovery job, or start once with the existing config/build. Poll its job until service.ready=true, then READY again. Missing config/source/build uses iphone-use-setup. No blanket reinstall or extra approval for authorized startup; honor no-restart instructions. Never uninstalls apps.",
+      "description": "First phone use in this chat: call setup(status) directly before READY; reuse an active start/recovery job, or start once with the existing config/build. Start waits up to 20 seconds for service readiness; if pending, query status with the same job_id and wait_seconds=20. Then READY. Missing config/source/build uses iphone-use-setup. No blanket reinstall or extra approval for authorized startup; honor no-restart instructions. Never uninstalls apps.",
       "readOnly": false,
       "appOnly": false,
       "parameters": {
@@ -971,6 +971,10 @@
           },
           "job_id": {
             "type": "string"
+          },
+          "wait_seconds": {
+            "type": "number",
+            "description": "Bounded wait for this job: start defaults to 20 seconds, status to 0. Use status with job_id and 20 to await an active start/recovery. Timeout keeps the job running; do not start again."
           }
         },
         "required": [
