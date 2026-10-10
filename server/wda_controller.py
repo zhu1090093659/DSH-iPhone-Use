@@ -33,6 +33,8 @@ INPUT_TTL = 600
 SELECTOR_FAILURES = ("no_such_element","ambiguous_target","occluded_target","offscreen_target","not_editable","no_focused_field","search_exhausted")
 VISUAL_FAILURES = SELECTOR_FAILURES + ("no_scroll_progress","scroll_context_changed","modal_requires_region","blocked_scroll_region","postcondition_failed","input_mismatch",
                                       "element not interactable","element click intercepted","invalid element state","no such element")
+# One ordered source of truth for batch: the published schema branches and the dispatch map both derive from it.
+BATCH_OPS=("tap","swipe","type_text","launch_app","press_button","wait","observe","scroll_find")
 
 
 def fail(code, message, **details):
@@ -884,7 +886,7 @@ class PhoneController:
     def batch(self,steps):
         if not isinstance(steps,list) or not 1<=len(steps)<=20:
             fail("invalid_argument","steps must contain 1..20 operations.")
-        allowed={"tap":self.tap,"swipe":self.swipe,"type_text":self.type_text,"launch_app":self.launch_app,"press_button":self.press_button,"wait":self.wait,"observe":self.observe,"scroll_find":self.scroll_find}
+        allowed={op:getattr(self,op) for op in BATCH_OPS}
         # Validate every step's shape before executing anything. Tool schemas validate nested arguments in the MCP layer.
         for step in steps:
             if not isinstance(step,dict) or set(step)-{"op","args"} or step.get("op") not in allowed or not isinstance(step.get("args",{}),dict):

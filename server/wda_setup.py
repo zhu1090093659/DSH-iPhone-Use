@@ -32,7 +32,6 @@ WDA_COMMIT = "d17782422d55ff1e5e0ceb74eb1fd509cc0c35b6"
 WDA_VERSION = "16.14.0"
 WDA_REPOSITORY = "https://github.com/appium/WebDriverAgent.git"
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_STATE = Path.home() / ".local/share/iphone-use"
 
 
 def state_directory(explicit=None):

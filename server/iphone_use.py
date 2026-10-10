@@ -4,7 +4,6 @@ import argparse
 import base64
 import collections
 import fcntl
-import inspect
 import json
 import math
 import os
@@ -18,7 +17,7 @@ import tempfile
 import threading
 import time
 from wda_client import WDAClient, WDAError
-from wda_controller import CALL_BUDGET, PhoneController, TYPING_FREQUENCY
+from wda_controller import BATCH_OPS, CALL_BUDGET, PhoneController, TYPING_FREQUENCY
 from wda_setup import SetupManager, state_directory
 from wda_apps import AppCatalog
 from wda_screen import ScreenHub
@@ -27,12 +26,6 @@ from analytics import Analytics
 
 PUAError=WDAError
 VERSION="0.3.6"
-SCREEN_URI="ui://iphone-use/phone-0.3.6.html"
-# Codex scopes reuse to the host, chat, server and UI resource. A stable result
-# ID keeps repeated READY/open/pause/resume calls in that chat on one panel,
-# including after the MCP process reconnects; no device identifiers are needed.
-SCREEN_SESSION_ID="iphone-use-screen"
-SCREEN_META={"ui":{"csp":{"connectDomains":[],"resourceDomains":[]},"prefersBorder":False},"openai/ui":{"availableDisplayModes":["fullscreen"],"preferredDisplayMode":"fullscreen"}}
 PROTOCOLS=("2025-11-25","2025-06-18","2025-03-26","2024-11-05")
 # Seconds PUA may wait for animations to end before a post-action tree read; WDA_SETTLE_SECONDS overrides it.
 SETTLE_SECONDS=0.8
@@ -87,8 +80,8 @@ SCHEMAS={
  "doctor":obj({}),"ready":obj({"screenshot":{"type":"boolean","default":True,"description":"Also verify screenshot; false retains status/session/source/viewport/unlock checks."},"recover":{"type":"boolean","default":True,"description":"Normal task startup: omit or set true, so a persistent local.pid/XCTest fault can queue one bounded restart of a proven owned PUA. Use false only for an explicitly requested diagnostic/no-restart check, not a routine precheck. False is respected and returns ready=false, state=recovery_required when restart is needed; queued recovery returns state=recovering. Neither state proves readiness."}}),"metrics":obj({"reset":{"type":"boolean","default":False,"description":"Return the totals, then start a new measurement window."}}),
  "setup":obj({"action":string(enum=["discover","fetch","configure","build","start","stop","status"]),"udid":string(),"team_id":string(),"bundle_id":string(),"source_dir":string(max_length=4096),"local_port":num(1024,65535,"integer"),"device_port":num(1024,65535,"integer"),"job_id":string()},("action",))
 }
-# Each batch operation carries the same closed argument schema as its standalone tool.
-BATCH_OPS=["tap","swipe","type_text","launch_app","press_button","wait","observe","scroll_find"]
+# Each batch operation carries the same closed argument schema as its standalone tool; the op list
+# is the controller's dispatch order so the published branches cannot drift from what batch executes.
 SCHEMAS["batch"]=obj({"steps":{"type":"array","minItems":1,"maxItems":20,"items":{"oneOf":[obj({"op":{"type":"string","const":op},"args":SCHEMAS[op]},("op","args")) for op in BATCH_OPS]}}},("steps",))
 SCHEMAS["ready"]["examples"]=[{"recover":True,"screenshot":False}]
 SCHEMAS["screen"]=obj({"action":string("Default open displays the live iPhone sidebar. Pause before password/Face ID takeover; resume only after the user confirms completion.",enum=["open","pause","resume"])})
@@ -168,11 +161,9 @@ def published_schema(name):
 TOOLS=[{"name":"pua_"+name,"title":"Pua "+name.replace("_"," "),"description":DESCRIPTIONS[name],"inputSchema":published_schema(name),
         "annotations":{"readOnlyHint":name in READS,"destructiveHint":name not in READS,"idempotentHint":name in READS,"openWorldHint":name!="screen_frame"}} for name,schema in SCHEMAS.items()]
 for tool in TOOLS:
-    if tool["name"] in ("pua_ready","pua_screen"):
-        tool["_meta"]={"ui":{"resourceUri":SCREEN_URI}}
     if tool["name"]=="pua_screen":
         tool.update(title="手机屏幕")
-        tool["_meta"]["openai/ui"]={"entrypoints":[{"type":"thread"}]}
+        tool["_meta"]={"openai/ui":{"entrypoints":[{"type":"thread"}]}}
         tool["annotations"].update(readOnlyHint=False,destructiveHint=False,idempotentHint=True)
     if tool["name"][len("pua_"):] in APP_TOOLS:tool["_meta"]={"ui":{"visibility":["app"]}}
     if tool["name"]=="pua_screen_action":tool["annotations"].update(readOnlyHint=False,destructiveHint=False,idempotentHint=True)
@@ -593,10 +584,7 @@ def tool_result(runtime,params):
         data=runtime.call(name,params.get("arguments",{}))
         # The preview App reads structuredContent; frames never become model text.
         if name=="pua_screen_frame":return {"content":[],"structuredContent":data,"isError":False}
-        result=result_content(data,structured=name in ("pua_screen","pua_screen_action"))
-        if name in ("pua_ready","pua_screen"):
-            result["_meta"]={"openai/widgetSessionId":SCREEN_SESSION_ID}
-        return result
+        return result_content(data,structured=name in ("pua_screen","pua_screen_action"))
     except WDAError as exc:return result_content({"error":exc.as_dict()},structured=name=="pua_screen_action")
     except Exception as exc:
         print("iphone-use tool failure: "+type(exc).__name__,file=sys.stderr)
@@ -608,7 +596,7 @@ INSTRUCTIONS=(
  "Read iphone-use-setup before setup and iphone-use for tasks. First phone task in a new chat: pua_ready(recover=true, screenshot=false); only ready=true permits phone tasks, then reuse READY's observation and the healthy channel. "
  "If READY fails with pua_unreachable/not_ready, continue initialization rather than end the task: pua_setup(action=status), reuse an active start/recovery job or start once from the existing config/build, poll that job until service.ready=true, then READY again. Missing config/source/build uses the setup skill. "
  "recover=true is runtime recovery, not cold startup; for state=recovering follow its setup job until the service is ready, then READY again. Honor explicit diagnostic/no-start/no-restart instructions. "
- "The live iPhone screen opens or reuses the same side panel with READY; setup/recovery and preview pause/resume keep the existing panel. Use pua_screen to reopen a closed panel, not to refresh an already open one. Opening it does not prove readiness or require an extra user confirmation, and widget frames never substitute for a model observation or final verification. "
+ "The live iPhone screen opens or reuses the same side panel with READY; setup/recovery and preview pause/resume keep the existing panel. Use pua_screen to reopen a closed panel, not to refresh an already open one. Opening it does not prove readiness or require an extra user confirmation. "
  "Results are one compact JSON text. Tree nodes give type without the XCUIElementType prefix and rect=[x,y,width,height] in iPhone points; an omitted name equals label, an omitted value repeats the text, omitted enabled/visible/in_viewport are true. A listed node is not proven hittable: fixed headers and overlays can cover it. "
  "A screenshot arrives as an image in the same result, and the DSH host also reports image_saved_to: read that PNG path with the read_image tool. In Codex, through functions.exec forward each image block with image(block) and text blocks with text(block.text), never text(the whole result) or base64; if image forwarding is unavailable, use view_image on image.path or error.observation.image.path. It is scaled for reading: image pixels x image.pixel_to_point [x,y] = iPhone points. Standalone observation uses mode, mutation output uses observe. "
  "Selectors copy label/name/value/type from fresh nodes; use label_contains for long or changing labels. Matches nested at one place, or with only one on screen, resolve by themselves. "
@@ -659,17 +647,11 @@ def serve(runtime):
                 method=request["method"]
                 if method=="initialize":
                     offered=params.get("protocolVersion")
-                    result={"protocolVersion":offered if offered in PROTOCOLS else PROTOCOLS[0],"capabilities":{"tools":{"listChanged":False},"resources":{"listChanged":False}},"serverInfo":{"name":"iphone-use","version":VERSION},"instructions":INSTRUCTIONS}
+                    result={"protocolVersion":offered if offered in PROTOCOLS else PROTOCOLS[0],"capabilities":{"tools":{"listChanged":False}},"serverInfo":{"name":"iphone-use","version":VERSION},"instructions":INSTRUCTIONS}
                     try:runtime.analytics.start()
                     except Exception:pass
                 elif method=="ping":result={}
                 elif method=="tools/list":result={"tools":TOOLS}
-                elif method=="resources/list":
-                    result={"resources":[{"uri":SCREEN_URI,"name":"iPhone Use Screen","title":"手机屏幕","mimeType":"text/html;profile=mcp-app","_meta":SCREEN_META}]}
-                elif method=="resources/read":
-                    if params.get("uri")!=SCREEN_URI:raise WDAError("invalid_argument","Unknown screen resource URI.")
-                    html=(Path(__file__).resolve().parents[1]/"assets/phone-screen.html").read_text()
-                    result={"contents":[{"uri":SCREEN_URI,"mimeType":"text/html;profile=mcp-app","text":html,"_meta":SCREEN_META}]}
                 elif method=="tools/call":
                     arrived=time.monotonic()
                     if params.get("name") not in ("pua_screen_frame","pua_screen","pua_screen_action"):
@@ -691,11 +673,11 @@ def serve(runtime):
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument("--state-dir");parser.add_argument("--url");parser.add_argument("--doctor",action="store_true");parser.add_argument("--ready",action="store_true")
+    parser.add_argument("--state-dir");parser.add_argument("--url");parser.add_argument("--ready",action="store_true")
     args=parser.parse_args();runtime=Runtime(args.state_dir,args.url)
     try:
-        if args.doctor or args.ready:
-            try:data=runtime.call("pua_doctor" if args.doctor else "pua_ready",{})
+        if args.ready:
+            try:data=runtime.call("pua_ready",{})
             except WDAError as exc:data={"error":exc.as_dict()}
             print(json.dumps(data,ensure_ascii=False));return 1 if "error" in data or (args.ready and data.get("ready") is not True) else 0
         serve(runtime);return 0
