@@ -36,7 +36,6 @@ const INCLUDE_DIRS = [
   ['dsh/plugin/lib', 'lib'],
   ['server', 'server'],
   ['tooling', 'tooling'],
-  ['assets', 'assets'],
   ['skills', 'skills'],
 ]
 
@@ -48,7 +47,7 @@ const INCLUDE_ROOT_FILES = [
 ]
 
 /** Never shipped: local state, caches and build residue. */
-const EXCLUDE = new Set(['__pycache__', 'node_modules', '.pytest_cache', '.DS_Store', 'iphone-use-demo.png', 'phone-screen.html'])
+const EXCLUDE = new Set(['__pycache__', 'node_modules', '.pytest_cache', '.DS_Store', 'iphone-use-demo.png'])
 
 function copyTree(from, to) {
   cpSync(from, to, {
