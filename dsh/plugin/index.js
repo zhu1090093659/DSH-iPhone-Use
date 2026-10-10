@@ -21,7 +21,7 @@ import { readFile } from 'node:fs/promises'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { BridgeError, BridgeTransportError, PROTOCOLS, startBridge } from './lib/bridge.js'
+import { BridgeTransportError, PROTOCOLS, startBridge } from './lib/bridge.js'
 
 /** Stable Cordis plugin name (also the loader row id in cordis.patch.yml). */
 export const name = 'iphone-use'
@@ -453,26 +453,6 @@ export function renderToolResult(value) {
   return blocks
 }
 
-/** Convert one bridge failure into a model-facing error with the bridge's own wording. */
-function toToolError(error, toolName) {
-  if (error instanceof BridgeError) {
-    const wrapper = new Error(String(error.message))
-    wrapper.name = 'IPhoneUseError'
-    wrapper.code = error.code
-    if (error.data !== undefined) wrapper.details = error.data
-    return wrapper
-  }
-  if (error instanceof BridgeTransportError) {
-    const wrapper = new Error(error.message)
-    wrapper.name = 'IPhoneUseError'
-    wrapper.code = 'bridge_unavailable'
-    return wrapper
-  }
-  const wrapper = new Error(`${toolName} failed: ${error?.message ?? String(error)}`)
-  wrapper.name = 'IPhoneUseError'
-  return wrapper
-}
-
 /**
  * Serve the panel's own loopback JSON routes over the same bridge.
  *
@@ -501,7 +481,6 @@ function registerPanelRoutes(webServer, config, callBridge, panelRequest) {
       handler: guard(async (_req, res) => {
         send(res, 200, {
           ok: true,
-          routes: ROUTES,
           // Newer than the stamp the panel last acted on means "the model
           // asked to see the screen"; the panel reveals itself once.
           panel_requested_at: panelRequest?.requestedAt ?? 0,

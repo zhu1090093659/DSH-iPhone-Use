@@ -552,13 +552,13 @@ class SettleTests(PhoneCase):
         self.assertEqual(self.client.settings[-1], {"animationCoolOffTimeout": 0})
 
 
-@unittest.skipUnless(os.access(wda_image.SIPS, os.X_OK), "screenshot scaling uses macOS sips")
 class ScreenshotTests(PhoneCase):
     def setUp(self):
         super().setUp()
         self.client.size = {"width": 440, "height": 956}
         self.client.screenshot = png(1320, 2868)
 
+    @unittest.skipUnless(os.access(wda_image.SIPS, os.X_OK), "the JPEG path runs /usr/bin/sips")
     def test_model_receives_a_bounded_jpeg_with_its_exact_point_scale(self):
         observed = self.phone.observe("screenshot")
         image = observed["image"]
